@@ -1,0 +1,234 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+path <- "/Users/abasiamaakpan/Downloads/"
+fn <- "pubmed_sample.xml"
+fpn = paste0(path, fn)
+
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = fpn)
+xmlRoot <- xmlRoot(xmlDOM)
+```
+
+```{r}
+library(rlang)
+```
+
+```{r}
+library(XML)
+library(tidyverse)
+library(lubridate)
+```
+
+```{r}
+data <- xmlSApply(xmlRoot,function(x) xmlSApply(x, xmlValue))
+#data[[1]]
+#t(data)[1]
+df <- data.frame(article=character(),journal=character(),author=character(),history=character())
+for(row in data){
+  df <- dplyr::bind_rows(df,row)
+}
+#df$price <- as.numeric(df$price,0)
+#df$publish_date <- as.Date(df$publish_date)
+```
+```{r}
+#xmlRoot
+```
+
+```{r}
+article = xpathSApply(xmlRoot,'//PubmedArticle//Article', xmlValue)
+article
+tibble::enframe(article)
+#Article consists of pubtypeList,GranttList,Language,AuthorList(All authors of title), Abstract, Elocation,PaginationArticleTitle,Journal(Issn,JournalIssue(volume,issue),pubdate(Medlinedate),Title,ISOAbbreviation)
+#22-80,160-256,415-527,710-809,1033-1130,1403-1487, 1702-1763, 1877-1967,
+#2178-2241
+```
+```{r}
+articleDetails = xpathSApply(xmlRoot,'//PubmedArticle//Article/AuthorList', xmlValue)
+articleDetails
+tibble::enframe(articleDetails)
+
+
+```
+
+
+```{r}
+## main author has department along with address
+authorlist = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', xmlValue)
+authorlist
+
+```
+```{r}
+## Fror each author 
+get_authors=function(xmlNode){
+  #print(xmlNode)
+    g<-newXMLDoc(xmlNode)
+    xmlNodecopy <- duplicate(xmlNode)
+    f<<-xmlNodecopy
+    vec=xpathSApply(g,'//Author/*',xmlValue)
+  return (paste(vec, collapse='|'))
+}
+```
+
+
+
+```{r}
+author_list = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
+author_list 
+```
+```{r}
+get_authors(f)
+```
+
+```{r}
+articletitle = xpathSApply(xmlRoot,'//ArticleTitle', xmlValue)
+#articletitle
+at=tibble::enframe(articletitle)
+
+```
+
+```{r}
+journalISSN=xpathSApply(xmlRoot,'//Article/Journal/ISSN', xmlValue)
+#journalISSN
+jISSN=tibble::enframe(journalISSN)
+
+#length(v2)
+```
+
+```{r}
+#volume, issue, pubdate
+##pubdate could have medline date or could just have year and month 
+
+journalIssue=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue', xmlValue)
+#journalIssue
+JIssue=tibble::enframe(journalIssue)
+
+```
+
+
+```{r}
+journalIssueVolume=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Volume', xmlValue)
+#journalIssueVolume
+JIssueV=tibble::enframe(journalIssueVolume)
+```
+
+```{r}
+journalIssueNumber=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', xmlValue)
+#journalIssueNumber
+JIssueN=tibble::enframe(journalIssueNumber)
+```
+ 
+```{r}
+journalIssuePubDate=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
+#journalIssuePubDate
+jIPubDate=tibble::enframe(journalIssuePubDate)
+
+```
+
+```{r}
+# pads with zeroes
+padstring=function(x){
+  x <-xmlValue(x)
+  #print(x)
+ if (nchar(x)==1){
+    return(paste0('0',x))
+  }
+  
+  return (x)
+}
+```
+
+```{r}
+# Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
+get_pub_status_and_value=function(xmlNode){
+  #print(xmlNode)
+    x<-newXMLDoc(xmlNode)
+    #xmlNodecopy <- duplicate(xmlNode)
+    #y<<-xmlNodecopy
+    vec=xpathSApply(x,'//PubMedPubDate/*',padstring)
+    datestring=paste(vec, collapse = '')
+  return (paste(datestring, xmlGetAttr(xmlNode,'PubStatus'),sep='|'))
+}
+```
+
+```{r}
+## pointer is a pointer to a subtree. 
+history_columns=function(xmlNode){
+    #made a brand new tree of the subtree
+    x<-newXMLDoc(xmlNode)
+    # for each pointer
+    ## getting all the pubmedubdate information of subtree
+   ## vec is a pipe delimited pubstatus
+    vec=xpathSApply(x,'//PubMedPubDate',get_pub_status_and_value)
+    ## collapse the vector into a single string separated by stars
+  return (paste(vec,collapse='*'))
+}
+```
+
+
+```{r}
+## find the pubmeddata of each article
+history=xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
+history
+```
+
+```{r}
+#VEctor of p1,p2,p3,p4.....p10
+## tidyverse/tidyr
+## pivot longer-one piece of data per row. Takes each column per row
+## 
+df_final_final=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)),sep='\\*') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('Date','PubStatus'),sep='\\|')
+
+
+```
+
+```{r}
+df_final_final %>% mutate(newDate=ymd(substr(Date,1,8)))
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+#trying to get all pub statuses for each pubmedarticle and pubmed data
+gethistory=xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History/PubMedPubDate', get_pub_status_and_value)
+gethistory
+```
+
+```{r}
+df_final=data.frame(Journal_ISSN=jISSN[2],Journal_Issue_Volume=JIssueV[2],Journal_Issue_Number=JIssueN[2],Journal_Issue_PubDate=jIPubDate[2],Article_title=at[2])
+ df_final
+
+ df_final %>% 
+  rename(
+    Journal_ISSN = value,
+    Journal_Issue_Volume = value.1,
+    Journal_Issue_Number=value.2,
+    Journal_Issue_PubDate=value.3,
+    Article_title=value.4
+    )
+```
+
