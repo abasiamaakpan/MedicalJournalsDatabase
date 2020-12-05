@@ -38,16 +38,18 @@ library(lubridate)
 ```
 
 ```{r}
-data <- xmlSApply(xmlRoot,function(x) xmlSApply(x, xmlValue))
+#data <- xmlSApply(xmlRoot,function(x) xmlSApply(x, xmlValue))
 #data[[1]]
 #t(data)[1]
-df <- data.frame(article=character(),journal=character(),author=character(),history=character())
-for(row in data){
-  df <- dplyr::bind_rows(df,row)
-}
+#df <- data.frame(article=character(),journal=character(),author=character(),history=character())
+#for(row in data){
+ # df <- dplyr::bind_rows(df,row)
+#}
 #df$price <- as.numeric(df$price,0)
 #df$publish_date <- as.Date(df$publish_date)
 ```
+
+
 ```{r}
 #xmlRoot
 ```
@@ -75,8 +77,9 @@ authorlist = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', xmlValue)
 authorlist
 
 ```
+
 ```{r}
-## Fror each author 
+## For each author 
 get_authors=function(xmlNode){
   #print(xmlNode)
     g<-newXMLDoc(xmlNode)
@@ -202,11 +205,6 @@ df_final_final=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)),s
 ```{r}
 df_final_final %>% mutate(newDate=ymd(substr(Date,1,8)))
 ```
-
-
-
-
-
 
 
 
