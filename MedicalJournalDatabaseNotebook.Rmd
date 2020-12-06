@@ -530,6 +530,15 @@ res <- dbExecute(con, "
     FOREIGN KEY (history_id) REFERENCES history (history_id)
   );
 ")
+
+# create publication types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS pub_types
+  (
+    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_type TEXT NOT NULL
+  );
+")
 ```
 
 ## Loading data into the database
