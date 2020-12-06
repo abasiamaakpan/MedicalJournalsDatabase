@@ -3,46 +3,34 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
-
 ```{r}
-plot(cars)
-```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
-
-```{r}
-path <- "/Users/abasiamaakpan/Downloads/"
-fn <- "pubmed_sample.xml"
-fpn = paste0(path, fn)
-
-# Reading the XML file and parse into DOM
-xmlDOM <- xmlParse(file = fpn)
-xmlRoot <- xmlRoot(xmlDOM)
-```
-
-```{r}
-library(rlang)
-```
-
-```{r}
+# install packages and libraries
+install.packages("RSQLite")
+install.packages("RSQLServer")
+install.packages("dplyr")
+install.packages("tidyr")
+install.packages('lubridate')
+library(dplyr)
+library(tidyr)
+library(DBI)
 library(XML)
-library(tidyverse)
+library(rlang)
 library(lubridate)
 ```
 
 
+```{r}
+xml_file <- "pubmed_sample.xml"
+
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+```
 
 ### Creating the authors dataframe-in progress
 ```{r}
-## For each author 
-get_authors=function(xmlNode){
+# For each author 
+get_authors = function(xmlNode) {
   #print(xmlNode)
     g<-newXMLDoc(xmlNode)
     xmlNodecopy <- duplicate(xmlNode)
@@ -228,40 +216,39 @@ article_journal_initial_df
 ## Creating the history dataframe
 ```{r}
 # pads with zeroes
-padstring=function(x){
+padstring = function(x) {
   x <-xmlValue(x)
-  #print(x)
- if (nchar(x)==1){
+
+  if (nchar(x)==1){
     return(paste0('0',x))
   }
-  
   return (x)
 }
 ```
 
 ```{r}
 # Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
-get_pub_status_and_value=function(xmlNode){
-  #print(xmlNode)
-    x<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
-    vec=xpathSApply(x,'//PubMedPubDate/*',padstring)
-    datestring=paste(vec, collapse = '')
+get_pub_status_and_value = function(xmlNode) {
+  x<-newXMLDoc(xmlNode)
+  #xmlNodecopy <- duplicate(xmlNode)
+  #y<<-xmlNodecopy
+  vec = xpathSApply(x,'//PubMedPubDate/*', padstring)
+  datestring = paste(vec, collapse = '')
+  
   return (paste(datestring, xmlGetAttr(xmlNode,'PubStatus'),sep='|'))
 }
 ```
 
 ```{r}
 ## pointer is a pointer to a subtree. 
-history_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    x<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    vec=xpathSApply(x,'//PubMedPubDate',get_pub_status_and_value)
-    ## collapse the vector into a single string separated by stars
+history_columns = function(xmlNode) {
+  # made a brand new tree of the subtree
+  x <- newXMLDoc(xmlNode)
+  # for each pointer
+  ## getting all the pubmedubdate information of subtree
+  ## vec is a pipe delimited pubstatus
+  vec=xpathSApply(x,'//PubMedPubDate',get_pub_status_and_value)
+  ## collapse the vector into a single string separated by stars
   return (paste(vec,collapse='*'))
 }
 ```
@@ -269,7 +256,7 @@ history_columns=function(xmlNode){
 
 ```{r}
 ## find the pubmeddata of each article
-history=xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
+history = xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
 history
 ```
 
@@ -277,24 +264,14 @@ history
 #VEctor of p1,p2,p3,p4.....p10
 ## tidyverse/tidyr
 ## pivot longer-one piece of data per row. Takes each column per row
-## 
 history_prelim_df=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)),sep='\\*') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('Date','PubStatus'),sep='\\|')
 
+final_date_column = history_prelim_df %>% transmute(newDate = ymd(substr(Date, 1, 8)))
 
-```
-```{r}
-history_prelim_df
-```
-
-
-```{r}
-final_date_column=history_prelim_df %>% transmute(newDate=ymd(substr(Date,1,8)))
-final_date_column
-```
-```{r}
-new_history_prelim_df=data.frame(publishStatus=history_prelim_df[4],DateColumn=final_date_column)
+new_history_prelim_df = data.frame(DateColumn = final_date_column, publishStatus = history_prelim_df[4])
 new_history_prelim_df
 ```
+
 ## Creating the article history dataframe
 ```{r}
 articleID=history_prelim_df[1]
@@ -302,7 +279,7 @@ articleID %>%
   rename(
     article_id = name,
     )
-newarticleID=articleID
+newarticleID = articleID
 
 ```
 
@@ -311,17 +288,12 @@ final_history_prelim_df <- tibble::rowid_to_column(new_history_prelim_df, "histo
 final_history_prelim_df 
 ```
 ```{r}
-article_history_df=data.frame(historyid=final_history_prelim_df[1],articleidentifier=newarticleID)
+article_history_df=data.frame(articleidentifier = newarticleID, historyid = final_history_prelim_df[1])
 article_history_df %>% 
   rename(
     articleid = name
     )
 article_history_df
-```
-
-
-```{r}
-
 ```
 
 
@@ -527,4 +499,51 @@ articleDetails = xpathSApply(xmlRoot,'//PubmedArticle//Article', xmlValue)
 articleDetails
 tibble::enframe(articleDetails)
 
+```
+
+
+### Creating a database and tables
+
+```{r}
+# create an ephemeral in-memory RSQLite database
+con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
+
+# CREATE TABLES
+# create history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS history
+  (
+    history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_date DATE NOT NULL,
+    pub_status TEXT NOT NULL
+  );
+")
+
+# create article history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_history
+  (
+    article_id INTEGER,
+    history_id INTEGER,
+    PRIMARY KEY(article_id, history_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (history_id) REFERENCES history (history_id)
+  );
+")
+```
+
+## Loading data into the database
+Since I have already created the tables, I will load the `Book` data frame by using placeholders in the query definition and matching each value to columns in the data frame. I will repeat this step for each table.
+```{r}
+# load history
+res <- dbSendQuery(con, "INSERT INTO history (pub_date, pub_status) VALUES (:newDate, :PubStatus);", new_history_prelim_df)
+res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load article history
+res <- dbSendQuery(con, "INSERT INTO article_history (article_id, history_id) VALUES (:name, :historyID);", article_history_df)
+res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
+dbFetch(res)
 ```
