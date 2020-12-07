@@ -195,6 +195,7 @@ journals_df <- tibble::rowid_to_column(journals_df_formatted, "JournalID")
 journals_df
 ```
 #### 2.1.3 Importing Journals into the database
+
 ```{r}
 # drop journals table if exists
 res <- dbExecute(con, "
@@ -221,107 +222,123 @@ res <- dbSendQuery(con, "SELECT * FROM journals LIMIT 5;")
 dbFetch(res)
 ```
 
-## Creating the history dataframe
+### 2.3 History: Parsing and Importing data
+#### 2.3.1 Creating the History dataframe
+
 ```{r}
-# pads with zeroes
-padstring=function(x){
-  x <-xmlValue(x)
-  #print(x)
- if (nchar(x)==1){
-    return(paste0('0',x))
+# helper function to add spacing
+pad_string=function(x){
+  x <- xmlValue(x)
+
+  if (nchar(x) == 1) {
+    return (paste0('0', x))
   }
   
   return (x)
 }
-```
 
-```{r}
-# Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
-get_pub_status_and_value=function(xmlNode){
-  #print(xmlNode)
-    x<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
-    vec=xpathSApply(x,'//PubMedPubDate/*',padstring)
-    datestring=paste(vec, collapse = '')
-  return (paste(datestring, xmlGetAttr(xmlNode,'PubStatus'),sep='|'))
+# define function to retrieve the value and pubstatus attribute of each node
+get_pub_status_and_value <- function(xmlNode) {
+  x<-newXMLDoc(xmlNode)
+  
+  vec <- xpathSApply(x, '//PubMedPubDate/*', pad_string)
+  datestring=paste(vec, collapse = '')
+  
+  return (paste(datestring, xmlGetAttr(xmlNode, 'PubStatus'), sep='|'))
 }
-```
 
-```{r}
-## pointer is a pointer to a subtree. 
-history_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    x<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    vec=xpathSApply(x,'//PubMedPubDate',get_pub_status_and_value)
-    ## collapse the vector into a single string separated by stars
-  return (paste(vec,collapse='*'))
+# format each node of the subtree
+history_columns <- function(xmlNode) {
+  # create new tree of the sub-tree
+  x <- newXMLDoc(xmlNode)
+    
+  # add delimiter to publication status
+  vec=xpathSApply(x, '//PubMedPubDate', get_pub_status_and_value)
+    
+  # collapse the vector into a single string separated by asterisks
+  return (paste(vec, collapse = '*'))
 }
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get history from XML file
+history <- xpathSApply(xmlRoot, '//PubmedArticle//PubmedData/History', history_columns)
+
+# create temporary history data frame
+history_data <- tibble::enframe(history) %>%  separate(value, paste0('p', seq(10)), sep = '\\*') %>% pivot_longer(!name,names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Date', 'PubStatus'), sep = '\\|')
+
+# format date column
+date_formatted <- history_data %>% transmute(PubDate = ymd(substr(Date, 1, 8)))
+
+# update temporary dataframe
+history_df_temp <- data.frame(publishStatus <- history_data[4], DateColumn <- date_formatted)
+
+# create history data frame
+history_df <- tibble::rowid_to_column(history_df_temp, "HistoryID")
+history_df 
 ```
 
+#### 2.3.2 Creating the Article-History dataframe
 
 ```{r}
-## find the pubmeddata of each article
-history=xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
-#history
+articleID = history_data[1]
+articleID %>% dplyr::rename(article_id = name)
+
+# create article-history data frame
+article_history_df <- data.frame(historyid = history_df[1], articleidentifier = newarticleID)
+article_history_df <- article_history_df %>% dplyr::rename(ArticleID = name)
+article_history_df
+```
+
+#### 2.3.3 Importing History and Article-History into the database
+```{r}
+# drop history table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS history;
+")
+
+# create history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS history
+  (
+    history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_status TEXT NOT NULL,
+    pub_date DATE NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO history (history_id, pub_status, pub_date) VALUES (:HistoryID, :PubStatus, :PubDate);", history_df)
+res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+dbFetch(res)
 ```
 
 ```{r}
-#VEctor of p1,p2,p3,p4.....p10
-## tidyverse/tidyr
-## pivot longer-one piece of data per row. Takes each column per row
-## 
-history_prelim_df=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)),sep='\\*') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('Date','PubStatus'),sep='\\|')
+# drop article_history table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_history;
+")
 
+# create article_history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_history
+  (
+    history_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, history_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (history_id) REFERENCES history (history_id)
+  );
+")
 
+# load data into article history table
+res <- dbSendQuery(con, "INSERT INTO article_history (history_id, article_id) VALUES (:HistoryID, :ArticleID);", article_history_df)
+res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
+dbFetch(res)
 ```
-
-```{r}
-history_prelim_df
-```
-
-
-```{r}
-final_date_column=history_prelim_df %>% transmute(newDate=ymd(substr(Date,1,8)))
-final_date_column
-```
-
-```{r}
-new_history_prelim_df=data.frame(publishStatus=history_prelim_df[4],DateColumn=final_date_column)
-new_history_prelim_df
-```
-## History DF
-```{r}
-final_history_prelim_df <- tibble::rowid_to_column(new_history_prelim_df, "historyID")
-final_history_prelim_df 
-```
-
-## Creating the article history dataframe
-```{r}
-articleID=history_prelim_df[1]
-articleID %>% 
-  dplyr::rename(
-    article_id = name,
-    )
-newarticleID=articleID
-
-```
-
-
-## articlehistory DF
-```{r}
-article_history_df=data.frame(historyid=final_history_prelim_df[1],articleidentifier=newarticleID)
-article_history_df %>% 
-  dplyr::rename(
-    articleid = name
-    )
-
-```
-
-
 
 
 
