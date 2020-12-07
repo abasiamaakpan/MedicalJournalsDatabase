@@ -658,6 +658,8 @@ grant_df_in_p_1
 grant_df_resolved<- data.frame(articleid=grant_df_in_p_1[2],grantid=grant_df_in_p_1[4],acronym=grant_df_in_p_1[5],agency=grant_df_in_p_1[6],country=grant_df_in_p_1[7])
 grant_df_resolved
 ```
+
+
 ```{r}
 grant_df_resolved_final=grant_df_resolved %>% 
   dplyr::rename(
@@ -665,20 +667,44 @@ grant_df_resolved_final=grant_df_resolved %>%
     )
 grant_df_resolved_final
 ```
-##Grant DF
+## Grant DF
 ```{r}
-grant_df_resolved_done=grant_df_resolved %>% distinct(grantid,agency,acronym)
+grant_df_resolved_done=grant_df_resolved_final %>% distinct(articleid,grantid,agency,acronym,country)
 grant_df_resolved_done
+```
+
+
+```{r}
+grant_df_modified <- tibble::rowid_to_column(grant_df_resolved_done, "uniquegrantID")
+
+```
+
+
+```{r}
+grant_df_modified_new <- data.frame(uniquegrandID=grant_df_modified[1],articleid=grant_df_resolved_done[1],grantid=grant_df_resolved_done[2],acronym=grant_df_resolved_done[3],agency=grant_df_resolved_done[4],country=grant_df_resolved_done[5])
+```
+
+```{r}
+grant_df_modified_new
+```
+```{r}
+#grant_df_modified_new
+grant_df_modified[1]
+grant_df_modified_new[2]
+```
+
+
+```{r}
+grant_final_dataframe <- data.frame(uniquegrantID=grant_df_modified[1],articleid=grant_df_modified_new[2])
 ```
 
 
 ## Article grant dataframe
 ```{r}
-article_grant_df_final <- data.frame(articleid=grant_df_resolved_final[1],journalid=grant_df_resolved_final[2])
-#article_grant_df_final
-article_grant_df_final_done=article_grant_df_final %>% distinct(articleid,grantid)
-article_grant_df_final_done
+grant_final_dataframe 
 ```
+
+
 ## Creating the article dataframe
 
 ```{r}
