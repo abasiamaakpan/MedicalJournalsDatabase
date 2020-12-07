@@ -25,9 +25,10 @@ library(lubridate)
 # create an ephemeral in-memory RSQLite database
 con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
 ```
+## 2. XML Parsing and Loading data into the database
 
-### 1.1 Authors: Parsing and Importing data
-#### 1.1.2 Creating the Articles dataframe
+### 2.1 Authors: Parsing and Importing data
+#### 2.1.2 Creating the Articles dataframe
 ```{r}
 # define function to retrieve authors list
 single_author_list <- function(xmlNode) {
@@ -75,7 +76,7 @@ authors_df <- tibble::rowid_to_column(authors_df, "authorID")
 authors_df
 ```
 
-#### 1.1.2 Creating the Article-Authors dataframe
+#### 2.1.2 Creating the Article-Authors dataframe
 ```{r}
 # create article-author data frame
 authors_df_copy = authors_df_initial[4] %>% 
@@ -88,7 +89,7 @@ article_authors_df <- tibble::rowid_to_column(authors_df_copy, "authorID")
 article_authors_df
 ```
 
-#### 1.1.3 Importing Authors and Article-Authors into the database
+#### 2.1.3 Importing Authors and Article-Authors into the database
 ```{r}
 # drop authors table if exists
 res <- dbExecute(con, "
@@ -137,8 +138,8 @@ res <- dbSendQuery(con, "SELECT * FROM article_author LIMIT 5;")
 dbFetch(res)
 ```
 
-### 1.1 Journals: Parsing and Importing data
-#### 1.1.2 Creating the Journals dataframe
+### 2.2 Journals: Parsing and Importing data
+#### 2.2.1 Creating the Journals dataframe
 
 ### Creating the journal dataframe
 ```{r}
@@ -147,104 +148,77 @@ xml_file <- "pubmed_sample.xml"
 xmlDOM <- xmlParse(file = xml_file)
 xmlRoot <- xmlRoot(xmlDOM)
 
-journalISSN=xpathSApply(xmlRoot,'//Article/Journal/ISSN', xmlValue)
-#journalISSN
-jISSN=tibble::enframe(journalISSN)
+# export journal ISSN
+ISSN <- xpathSApply(xmlRoot, '//Article/Journal/ISSN', xmlValue)
+JournalISSN <- tibble::enframe(ISSN)
 
-```
+# export journal issue
+journalIssue <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue', xmlValue)
+JIssue <- tibble::enframe(journalIssue)
 
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-#volume, issue, pubdate
-##pubdate could have medline date or could just have year and month 
+# export journal issue volume
+IssueVolume <- xpathSApply(xmlRoot, '//Article//Journal/JournalIssue/Volume', xmlValue)
+JournalIssueVolume <- tibble::enframe(IssueVolume)
 
-journalIssue=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue', xmlValue)
-#journalIssue
-JIssue=tibble::enframe(journalIssue)
+# export journal issue number
+JournalIssueNumber <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', xmlValue)
+JournalIssueNumber <- tibble::enframe(JournalIssueNumber)
 
-```
+# export journal issue publication date
+IssuePubDate <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
+JournalIssuePubDate <- tibble::enframe(IssuePubDate)
 
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
+# export journal issue title
+Title <- xpathSApply(xmlRoot,'//Article//Title', xmlValue)
+JournalTitle <- tibble::enframe(Title)
 
-journalIssueVolume=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Volume', xmlValue)
-#journalIssueVolume
-JIssueV=tibble::enframe(journalIssueVolume)
-```
+# export journal ISO abbreviation
+ISOAbbrev <- xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
+JournalISOAbbrev <- tibble::enframe(ISOAbbrev)
 
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-
-journalIssueNumber=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', xmlValue)
-#journalIssueNumber
-JIssueN=tibble::enframe(journalIssueNumber)
-```
-
- 
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-
-journalIssuePubDate=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
-#journalIssuePubDate
-jIPubDate=tibble::enframe(journalIssuePubDate)
-
-```
-
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-
-JTitle=xpathSApply(xmlRoot,'//Article//Title', xmlValue)
-#journalIssuePubDate
-jTitleNew=tibble::enframe(JTitle)
-#jTitleNew
-```
-
-```{r}
-# read XML file and parse into DOM
-xml_file <- "pubmed_sample.xml"
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-
-ISOAbbrev=xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
-#journalIssuePubDate
-jISOAbbrev=tibble::enframe(ISOAbbrev)
-#jISOAbbrev
-```
-
-```{r}
-Journal_df=data.frame(Journal_ISSN=jISSN[2],Journal_Issue_Volume=JIssueV[2],Journal_Issue_Number=JIssueN[2],Journal_Issue_PubDate=jIPubDate[2],title=jTitleNew[2],JIsoabbreviation=jISOAbbrev[2])
+# format data into data frame
+Journal_df <- data.frame(JournalISSN = JournalISSN[2], JournalIssueVolume = JournalIssueVolume[2], JournalIssueNumber = JournalIssueNumber[2], JournalIssuePubDate = JournalIssuePubDate[2], Title = JournalTitle[2], JournalISOAbbrev = JournalISOAbbrev[2])
 Journal_df
 
-final_Journal_df=Journal_df %>% 
+journals_df_formatted <- Journal_df %>% 
   dplyr::rename(
     ISSN = value,
     Volume = value.1,
-    Issue=value.2,
-    PubDate=value.3,
-    title=value.4,
-    ISOAbbrev=value.5
+    Issue = value.2,
+    PubDate = value.3,
+    Title = value.4,
+    ISOAbbrev = value.5
     )
 
+# create journals data frame
+journals_df <- tibble::rowid_to_column(journals_df_formatted, "JournalID")
+journals_df
 ```
-## Journal DF
+#### 2.1.3 Importing Journals into the database
 ```{r}
-article_journal_initial_df <- tibble::rowid_to_column(final_Journal_df, "journalID")
-article_journal_initial_df
+# drop journals table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS journals;
+")
+
+# create journals table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS journals
+  (
+    journal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issn TEXT NOT NULL,
+    volume TEXT NOT NULL,
+    issue INTEGER NOT NULL,
+    pub_date DATE NOT NULL,
+    title TEXT NOT NULL,
+    iso_abbrev TEXT NOT NULL
+  );
+")
+
+# load data into journals table
+res <- dbSendQuery(con, "INSERT INTO journals (journal_id, issn, volume, issue, pub_date, title, iso_abbrev) VALUES (:JournalID, :ISSN, :Volume, :Issue, :PubDate, :Title, :ISOAbbrev);", journals_df)
+res <- dbSendQuery(con, "SELECT * FROM journals LIMIT 5;")
+dbFetch(res)
 ```
 
 ## Creating the history dataframe
