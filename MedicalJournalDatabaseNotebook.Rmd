@@ -28,28 +28,27 @@ xmlRoot <- xmlRoot(xmlDOM)
 
 ### Creating the authors dataframe
 ```{r}
-single_author_list=function(xmlNode){
-     
-     xmlNodecopy <- duplicate(xmlNode)
-     xcopy<-newXMLDoc(xmlNodecopy)
-     lastname=xpathSApply(xcopy,'//LastName',xmlValue)
-     firstname=xpathSApply(xcopy,'//ForeName',xmlValue)
-     initials=xpathSApply(xcopy,'//Initials',xmlValue)
-  return (paste(lastname,firstname,initials, sep='*'))
-
+single_author_list <- function(xmlNode) {
+  xmlNodecopy <- duplicate(xmlNode)
+  xcopy <- newXMLDoc(xmlNodecopy)
+  lastname <- xpathSApply(xcopy, '//LastName', xmlValue)
+  firstname <- xpathSApply(xcopy, '//ForeName', xmlValue)
+  initials <- xpathSApply(xcopy, '//Initials', xmlValue)
+  
+  return (paste(lastname, firstname, initials, sep='*'))
 }
 ```
 
 ```{r}
-## For each author 
-get_authors=function(xmlNode){
+# For each author 
+get_authors <- function(xmlNode) {
   #print(xmlNode)
-    newxmlNodecopy <- duplicate(xmlNode)
-    pb<-newXMLDoc(newxmlNodecopy)
-    g <-newXMLDoc(xmlNode)
-    names=xpathSApply(g,'//Author',single_author_list)
-    names_single_string=paste(names,collapse='|')
-    affiliation=xpathSApply(pb,'//Affiliation', xmlValue)
+  newxmlNodecopy <- duplicate(xmlNode)
+  pb<-newXMLDoc(newxmlNodecopy)
+  g <-newXMLDoc(xmlNode)
+  names=xpathSApply(g,'//Author',single_author_list)
+  names_single_string=paste(names,collapse='|')
+  affiliation=xpathSApply(pb,'//Affiliation', xmlValue)
   return (paste(affiliation,names_single_string, sep='|'))
 }
 ```
@@ -288,7 +287,7 @@ article_history_df %>%
 ```{r}
 #trying to get all pub statuses for each pubmedarticle and pubmed data
 ##Getting all the abstract
-aabstract=xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
+abstract=xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
 #aabstract
 ```
 
@@ -516,7 +515,7 @@ pubtype_new_df_final
 
 ### Creating Article Pub Type Dataframe
 ```{r}
-datP <- merge( pubtype_new_df_final,  pubtype_new_df_prelim_new, all.x=TRUE)
+datP <- merge(pubtype_new_df_final,  pubtype_new_df_prelim_new, all.x=TRUE)
 #datP
 ```
 ## Article Pub Type
@@ -524,38 +523,6 @@ datP <- merge( pubtype_new_df_final,  pubtype_new_df_prelim_new, all.x=TRUE)
 pubtype_new_df_final_done <- subset(datP, select = -c(type))
 pubtype_new_df_final_done
 ```
-
-
-```{r}
-#install.packages("plyr")
-#library("plyr") 
-#library(plyr)
-#library(dplyr)
-
-```
-
-```{r}
-#require(data.table)
-#newdf1 <- data.table(newdf, key="type")
-#pubtype_new_df_final <- data.table(pubtype_new_df_final, key="type")
-
-#rslt = pubtype_new_df_final[newdf1,allow.cartesian=TRUE][,list(type = unique(type), articleID=length(articleID)),by=type]
-#rslt
-
-```
-
-
-```{r}
-#grant_df_resolved<- #data.frame(articleid=grant_df_in_p_1[2],grantid=grant_df_in_p_1[4],acronym=gra#nt_df_in_p_1[5],agency=grant_df_in_p_1[6],country=grant_df_in_p_1[7])
-```
-
-
-```{r}
-#article_pub_type_df <- subset(newdf, select = -c(type))
-#article_pub_type_df
-```
-
-
 
 ## Creating Grant Dataframe-in progress
 ```{r}
@@ -733,6 +700,59 @@ article_df_final
 con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
 
 # CREATE TABLES
+# create journals table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS journals
+  (
+    journal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issn TEXT NOT NULL,
+    volume TEXT NOT NULL,
+    issue INTEGER NOT NULL,
+    pub_date DATE NOT NULL,
+    title TEXT NOT NULL,
+    iso_abbrev TEXT NOT NULL
+  );
+")
+
+# create articles table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS articles
+  (
+    article_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journal_id TEXT,
+    pub_model TEXT NOT NULL,
+    title TEXT NOT NULL,
+    pagination INTEGER NOT NULL,
+    pub_date DATE NOT NULL,
+    lang TEXT NOT NULL,
+    FOREIGN KEY (journal_id) REFERENCES journalS (journal_id)
+  );
+")
+
+# create authors table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS authors
+  (
+    author_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    last_name TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    initials TEXT NOT NULL,
+    affiliation TEXT NOT NULL
+  );
+")
+
+# create article authorship table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_author
+  (
+    article_id INTEGER,
+    author_id INTEGER,
+    PRIMARY KEY(article_id, author_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (author_id) REFERENCES authors (author_id)
+  );
+")
+
 # create history table
 res <- dbExecute(con, "
   CREATE TABLE IF NOT EXISTS history
@@ -755,29 +775,6 @@ res <- dbExecute(con, "
   );
 ")
 
-# create publication types table
-res <- dbExecute(con, "
-  CREATE TABLE IF NOT EXISTS pub_types
-  (
-    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pub_type TEXT NOT NULL
-  );
-")
-
-# create journals table
-res <- dbExecute(con, "
-  CREATE TABLE IF NOT EXISTS journals
-  (
-    journal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    issn TEXT NOT NULL,
-    volume TEXT NOT NULL,
-    issue INTEGER NOT NULL,
-    pub_date DATE NOT NULL,
-    title TEXT NOT NULL,
-    iso_abbrev TEXT NOT NULL
-  );
-")
-
 # create abstracts table
 res <- dbExecute(con, "
   CREATE TABLE IF NOT EXISTS abstracts
@@ -789,25 +786,118 @@ res <- dbExecute(con, "
   );
 ")
 
-# create articles table
+# create article abstracts table
 res <- dbExecute(con, "
-  CREATE TABLE IF NOT EXISTS articles
+  CREATE TABLE IF NOT EXISTS article_abstract
   (
-    article_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    journal_id TEXT,
-    pub_model TEXT NOT NULL,
-    title TEXT NOT NULL,
-    pub_date DATE NOT NULL,
-    lang TEXT NOT NULL,
-    FOREIGN KEY (journal_id) REFERENCES journalS (journal_id)
+    abstract_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, abstract_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (abstract_id) REFERENCES abstracts (abstract_id)
+  );
+")
+
+# create elocations table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS elocations
+  (
+    elocation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eloc_type TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+")
+
+# create elocations table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_elocations
+  (
+    article_id INTEGER,
+    elocation_id INTEGER,
+    PRIMARY KEY(article_id, elocation_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (elocation_id) REFERENCES elocations (elocation_id)
+  );
+")
+
+# create publication types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS pub_types
+  (
+    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_type TEXT NOT NULL
+  );
+")
+
+# create article publication types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_pub_type
+  (
+    pub_type_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, pub_type_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (pub_type_id) REFERENCES pub_types (pub_type_id)
+  );
+")
+
+# create grants table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS grants
+  (
+    grant_id TEXT PRIMARY KEY,
+    acronym TEXT NOT NULL,
+    agency TEXT NOT NULL,
+    country TEXT NOT NULL
+  );
+")
+
+# create article grants table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_grant
+  (
+    article_id INTEGER,
+    grant_id TEXT,
+    PRIMARY KEY(article_id, grant_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (grant_id) REFERENCES grants (grant_id)
   );
 ")
 ```
 
 ## Loading data into the database
 Since I have already created the tables, I will load the `Book` data frame by using placeholders in the query definition and matching each value to columns in the data frame. I will repeat this step for each table.
+
 ```{r}
-# load history
+# load journals table
+res <- dbSendQuery(con, "INSERT INTO journals (journal_id, issn, volume, issue, pub_date, title, iso_abbrev) VALUES (:journalID, :ISSN, :Volume, :Issue, :PubDate, :title, :ISOAbbrev);", article_journal_initial_df)
+res <- dbSendQuery(con, "SELECT * FROM journals LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load articles table
+res <- dbSendQuery(con, "INSERT INTO articles (article_id, journal_id, pub_model, title, pagination, pub_date, lang) VALUES (:articleid, :journalid, :pubModel, :articleTitle, :pagination, :date, :language);", article_df_final)
+res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load authors table
+res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials, affiliation) VALUES (:newDate, :PubStatus);", daAuthor)
+res <- dbSendQuery(con, "SELECT * FROM authors LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load article authors table
+res <- dbSendQuery(con, "INSERT INTO article_author (author_id, article_id) VALUES (:authorID, :areticleID);", dArticle_Authors)
+res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load history table
 res <- dbSendQuery(con, "INSERT INTO history (pub_date, pub_status) VALUES (:newDate, :PubStatus);", new_history_prelim_df)
 res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
 dbFetch(res)
@@ -820,20 +910,6 @@ res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
 dbFetch(res)
 ```
 
-```{r}
-# load journals
-res <- dbSendQuery(con, "INSERT INTO journals (journal_id, pub_model, title, pub_date, lang) VALUES (:journalID, :ISSN, :Volume, :Issue, :PubDate, :title, :ISOAbbrev);", article_journal_initial_df)
-res <- dbSendQuery(con, "SELECT * FROM journals LIMIT 5;")
-dbFetch(res)
-```
-
-```{r}
-# load articles
-res <- dbSendQuery(con, "INSERT INTO articles (abstract_id, index, label, nml_category, content) VALUES (:name, :index, :label, :nlmCategory, :content);", author_list_df)
-res <- dbSendQuery(con, "SELECT * FROM articles LIMIT 5;")
-dbFetch(res)
-```
-
 
 ```{r}
 # load abstracts
@@ -841,4 +917,38 @@ res <- dbSendQuery(con, "INSERT INTO abstracts (abstract_id, label, nml_category
 res <- dbSendQuery(con, "SELECT * FROM abstracts LIMIT 5;")
 dbFetch(res)
 ```
+
+```{r}
+# load abstract article
+res <- dbSendQuery(con, "INSERT INTO article_abstract (abstract_id, article_id) VALUES (:abstractID, :articleID);", abstract_df_new_all)
+res <- dbSendQuery(con, "SELECT * FROM article_abstract LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load elocations
+res <- dbSendQuery(con, "INSERT INTO elocations (elocation_id, eloc_type, content) VALUES (:elocationID, :elocationType, :content);", test_elocation_df_new_final)
+res <- dbSendQuery(con, "SELECT * FROM elocations LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load article elocations
+res <- dbSendQuery(con, "INSERT INTO article_elocations (article_id, elocation_id) VALUES (:elocationID, :articleID);", elocation_df_final_df_done)
+res <- dbSendQuery(con, "SELECT * FROM elocations LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load publication types
+res <- dbSendQuery(con, "INSERT INTO pub_types (pub_type_id, pub_type) VALUES (:pubTypeID, :type);", pubtype_new_df_final)
+res <- dbSendQuery(con, "SELECT * FROM elocations LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# load article publication types
+res <- dbSendQuery(con, "INSERT INTO article_pub_type (pub_type_id, article_id) VALUES (:pubTypeID, :articleID);", pubtype_new_df_final_done)
+res <- dbSendQuery(con, "SELECT * FROM article_pub_type LIMIT 5;")
+dbFetch(res)
 ```
