@@ -177,10 +177,10 @@ ISOAbbrev <- xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
 JournalISOAbbrev <- tibble::enframe(ISOAbbrev)
 
 # format data into data frame
-Journal_df <- data.frame(JournalISSN = JournalISSN[2], JournalIssueVolume = JournalIssueVolume[2], JournalIssueNumber = JournalIssueNumber[2], JournalIssuePubDate = JournalIssuePubDate[2], Title = JournalTitle[2], JournalISOAbbrev = JournalISOAbbrev[2])
-Journal_df
+journals_df_temp <- data.frame(JournalISSN = JournalISSN[2], JournalIssueVolume = JournalIssueVolume[2], JournalIssueNumber = JournalIssueNumber[2], JournalIssuePubDate = JournalIssuePubDate[2], Title = JournalTitle[2], JournalISOAbbrev = JournalISOAbbrev[2])
+journals_df_temp
 
-journals_df_formatted <- Journal_df %>% 
+journals_df_formatted <- journals_df_temp %>% 
   dplyr::rename(
     ISSN = value,
     Volume = value.1,
@@ -842,9 +842,9 @@ ArticleTitle <- xpathSApply(xmlRoot, '//Article/ArticleTitle', xmlValue)
 ArticlePagination <- xpathSApply(xmlRoot, '//Article/Pagination', xmlValue)
 ArticleDate <- xpathSApply(xmlRoot, '//Article', get_date)
 ArticleLang <- xpathSApply(xmlRoot, '//Article/Language', xmlValue)
-ArticleIndex <- tibble::rowid_to_column(journals_df, "ArticleID")
+ArticleIndex <- tibble::rowid_to_column(journals_df_temp, "ArticleID")
 
-# article_df <- data.frame(ArticleID = ArticleIndex[1], JournalID = ArticleIndex[1], PubModel = ArticlePubModel, Title = ArticleTitle, Pagination = ArticlePagination, Date = ArticleDate, Language = ArticleLang)
+article_df <- data.frame(ArticleID = ArticleIndex[1], JournalID = ArticleIndex[1], PubModel = ArticlePubModel, Title = ArticleTitle, Pagination = ArticlePagination, Date = ArticleDate, Language = ArticleLang)
 
 # article_df$Date <- ymd(article_df$Date)
 
@@ -907,7 +907,7 @@ articlel= xpathSApply(xmlRoot,'//Article/Language', xmlValue)
 ```
 
 ```{r}
-grabbing_index <- tibble::rowid_to_column(journals_df, "articleID")
+grabbing_index <- tibble::rowid_to_column(journals_df_formatted, "articleID")
 #grabbing_index
 #articlel
 #unlist(grabbing_index[1])
@@ -946,7 +946,7 @@ res <- dbExecute(con, "
 ")
 
 # load articles table
-res <- dbSendQuery(con, "INSERT INTO articles (article_id, journal_id, pub_model, title, pub_date, lang) VALUES (:ArticleID, :JournalID, :PubModel, :Agency, :Country);", grants_df)
+res <- dbSendQuery(con, "INSERT INTO articles (article_id, journal_id, pub_model, title, pub_date, lang) VALUES (:ArticleID, :JournalID, :PubModel, :Agency, :Country);", articles_df)
 res <- dbSendQuery(con, "SELECT * FROM articles LIMIT 5;")
 
 dbFetch(res)
