@@ -39,117 +39,92 @@ library(lubridate)
 
 
 
-### Creating the authors dataframe-in progress
+### Creating the authors dataframe
+```{r}
+single_author_list=function(xmlNode){
+     
+     xmlNodecopy <- duplicate(xmlNode)
+     xcopy<-newXMLDoc(xmlNodecopy)
+     lastname=xpathSApply(xcopy,'//LastName',xmlValue)
+     firstname=xpathSApply(xcopy,'//ForeName',xmlValue)
+     initials=xpathSApply(xcopy,'//Initials',xmlValue)
+  return (paste(lastname,firstname,initials, sep='*'))
+
+}
+```
+
 ```{r}
 ## For each author 
 get_authors=function(xmlNode){
   #print(xmlNode)
-    g<-newXMLDoc(xmlNode)
-    xmlNodecopy <- duplicate(xmlNode)
-    f<<-xmlNodecopy
-    vec=xpathSApply(g,'//Author/*',xmlValue)
-  return (paste(vec, collapse='|'))
+    newxmlNodecopy <- duplicate(xmlNode)
+    pb<-newXMLDoc(newxmlNodecopy)
+    g <-newXMLDoc(xmlNode)
+    names=xpathSApply(g,'//Author',single_author_list)
+    names_single_string=paste(names,collapse='|')
+    affiliation=xpathSApply(pb,'//Affiliation', xmlValue)
+  return (paste(affiliation,names_single_string, sep='|'))
 }
+```
+
+```{r}
+
 ```
 
 
 
 ```{r}
 author_list = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
-author_list 
 ```
 
+```{r}
+author_list_df=tibble::enframe(author_list)%>%  separate(value,c('Affiliation',paste0('x',seq(12))),sep='\\|') %>% pivot_longer(starts_with('x'),names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('LastName','FirstName','Initial'),sep='\\*')
+```
 
 ```{r}
-
-author_list_df=tibble::enframe(author_list)%>% 
-#separate(value,paste0('p',seq(30)),sep='\\|') %>%
-pivot_longer(!name,names_to='index',values_to='data') %>% 
-separate(col=data, into =   c('LastName','FirstName','Initials','affiliation','LastName1','FirstName1','Initials1','LastName2','FirstName2','Initials2','LastName3','FirstName3','Initials3','LastName4','FirstName4','Initials4','LastName5','FirstName5','Initials5','LastName6','FirstName6','Initials6','LastName7','FirstName7','Initials7','LastName8','FirstName8','Initials8','LastName9','FirstName9','Initials9','LastName10','FirstName10','Initial10','FirstName11','Initials11','LastName11','FirstName12','Initial12' ),sep='\\|')
 author_list_df
-
 ```
-
-
-
+### Creating the authors dataframe
 ```{r}
-author_list_df[6]
-```
-
-
-```{r}
-new_author_list_df <- subset(author_list_df, select = -c(affiliation,index))
-new_author_list_df
-```
-```{r}
-author_list_df_test <- melt(as.data.table(new_author_list_df), id=c("name"))
-
-author_list_df_test
-```
-```{r}
-for (i in seq_along(author_list_df_test)) {
-    author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName1"] <- "FirstName"
-        author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName2"] <- "FirstName"
-            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName3"] <- "FirstName"
-                author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName4"] <- "FirstName"
-                    author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName5"] <- "FirstName"
-                        author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName6"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName7"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName8"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName9"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName10"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName10"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName11"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName12"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName1"] <- "LastName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName2"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName3"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName4"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName5"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName6"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName7"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName8"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName9"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName10"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName11"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName12"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial1"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial2"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial3"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial4"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initials5"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial6"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial7"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial8"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial9"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial10"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial11"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial12"] <- "Initials"
-}
-author_list_df_test
+#author_list_df(author,)
+#author_list_df_df <- tibble::rowid_to_column(author_list_df, "authorID")
+author_list_df_final=author_list_df %>% distinct(FirstName,LastName,Initial)
+#author_list_df_final
 ```
 
 ```{r}
-drop_na(author_list_df_test)
+daAuthor <- merge( author_list_df,  author_list_df_final, all.x=TRUE)
+daAuthor 
 ```
 ```{r}
-author_list_df_test_prelim_inp <- tibble::rowid_to_column(author_list_df_test, "authorID")
-author_list_df_test_prelim_inp
-
+daAuthor[4]
 ```
 ```{r}
-library(tidyr)
-author_list_df_test_prelim_inp.wide <- pivot_wider(author_list_df_test_prelim_inp, names_from = variable, values_from = value) 
-author_list_df_test_prelim_inp.wide
-
+daAuthor_new=daAuthor[4] %>% 
+  dplyr::rename(
+    articleID = name,
+    )
 ```
 
+
+### articleauthors df
 ```{r}
-new_author_list_df.long <- pivot_longer(author_list_df, cols=3:38, names_to = "Name_combo", values_to = "Answer_combo")
-new_author_list_df
+dArticle_Authors <- tibble::rowid_to_column(daAuthor_new, "authorID")
+dArticle_Authors
+```
+```{r}
+daAuthor_final<- subset( daAuthor, select = -c(index,name))
 ```
 
-### Creating the journal dataframe-in progress
+### authors df
+```{r}
+daAuthor_new_frame <- tibble::rowid_to_column(daAuthor_final, "authorID")
+daAuthor_new_frame
+```
+
+
+
+### Creating the journal dataframe
 ```{r}
 journalISSN=xpathSApply(xmlRoot,'//Article/Journal/ISSN', xmlValue)
 #journalISSN
@@ -168,7 +143,6 @@ JIssue=tibble::enframe(journalIssue)
 
 ```
 
-
 ```{r}
 journalIssueVolume=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Volume', xmlValue)
 #journalIssueVolume
@@ -180,6 +154,7 @@ journalIssueNumber=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', 
 #journalIssueNumber
 JIssueN=tibble::enframe(journalIssueNumber)
 ```
+
  
 ```{r}
 journalIssuePubDate=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
@@ -192,21 +167,22 @@ jIPubDate=tibble::enframe(journalIssuePubDate)
 JTitle=xpathSApply(xmlRoot,'//Article//Title', xmlValue)
 #journalIssuePubDate
 jTitleNew=tibble::enframe(JTitle)
-jTitleNew
+#jTitleNew
 ```
 
 ```{r}
 ISOAbbrev=xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
 #journalIssuePubDate
 jISOAbbrev=tibble::enframe(ISOAbbrev)
-jISOAbbrev
+#jISOAbbrev
 ```
+
 ```{r}
 Journal_df=data.frame(Journal_ISSN=jISSN[2],Journal_Issue_Volume=JIssueV[2],Journal_Issue_Number=JIssueN[2],Journal_Issue_PubDate=jIPubDate[2],title=jTitleNew[2],JIsoabbreviation=jISOAbbrev[2])
 Journal_df
 
 final_Journal_df=Journal_df %>% 
-  rename(
+  dplyr::rename(
     ISSN = value,
     Volume = value.1,
     Issue=value.2,
@@ -216,10 +192,7 @@ final_Journal_df=Journal_df %>%
     )
 
 ```
-```{r}
-final_Journal_df
-```
-## Creating the article journal df
+## Journal DF
 ```{r}
 article_journal_initial_df <- tibble::rowid_to_column(final_Journal_df, "journalID")
 article_journal_initial_df
@@ -270,7 +243,7 @@ history_columns=function(xmlNode){
 ```{r}
 ## find the pubmeddata of each article
 history=xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
-history
+#history
 ```
 
 ```{r}
@@ -282,6 +255,7 @@ history_prelim_df=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)
 
 
 ```
+
 ```{r}
 history_prelim_df
 ```
@@ -291,41 +265,44 @@ history_prelim_df
 final_date_column=history_prelim_df %>% transmute(newDate=ymd(substr(Date,1,8)))
 final_date_column
 ```
+
 ```{r}
 new_history_prelim_df=data.frame(publishStatus=history_prelim_df[4],DateColumn=final_date_column)
 new_history_prelim_df
 ```
+## History DF
+```{r}
+final_history_prelim_df <- tibble::rowid_to_column(new_history_prelim_df, "historyID")
+final_history_prelim_df 
+```
+
 ## Creating the article history dataframe
 ```{r}
 articleID=history_prelim_df[1]
 articleID %>% 
-  rename(
+  dplyr::rename(
     article_id = name,
     )
 newarticleID=articleID
 
 ```
 
-```{r}
-final_history_prelim_df <- tibble::rowid_to_column(new_history_prelim_df, "historyID")
-final_history_prelim_df 
-```
+
+## articlehistory DF
 ```{r}
 article_history_df=data.frame(historyid=final_history_prelim_df[1],articleidentifier=newarticleID)
 article_history_df %>% 
-  rename(
+  dplyr::rename(
     articleid = name
     )
-article_history_df
-```
-
-
-```{r}
 
 ```
 
 
-### Creating the abstract dataframe-not started
+
+
+
+### Creating the abstract dataframe
 
 ```{r}
 #trying to get all pub statuses for each pubmedarticle and pubmed data
@@ -333,75 +310,155 @@ article_history_df
 aabstract=xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
 #aabstract
 ```
-### Creating the elocation dataframe-in progress
 
 ```{r}
-v3=xpathSApply(xmlRoot,'//ELocationID', xmlGetAttr, 'EIdType')
-length(v3)
+abstract_new=function(xmlNode){
+  #print(xmlNode)
+    xmlNodecopy <- duplicate(xmlNode)
+    x<-newXMLDoc(xmlNodecopy)
+    xmlNodecopy1 <- duplicate(xmlNode)
+    y<-newXMLDoc(xmlNodecopy1)
+    xmlNodecopy2 <- duplicate(xmlNode)
+    z<-newXMLDoc(xmlNodecopy2)
+    #y<<-xmlNodecopy
+    vec=xpathSApply(x,'//AbstractText',xmlGetAttr,'Label')
+    vec1=xpathSApply(y,'//AbstractText',xmlGetAttr,'NlmCategory')
+    vec2=xpathSApply(z,'//AbstractText',xmlValue)
+    
 
-data <- xmlSApply(xmlRoot,function(x) xmlSApply(x, xmlValue))
-
-elocation_df <- data.frame(elocID=character(),Type=character(),content=character())
-for(row in data){
-elocation_df <- dplyr::bind_rows(elocation_df,row)
+    #datestring=paste(vec, collapse = '')
+  return (paste(vec,vec1,vec2, collapse='|',sep='*'))
 }
-elocation_df$elocID=v3
-
-elocation_df
 ```
 
+```{r}
+  abstract_df=xpathSApply(xmlRoot,'//Article',abstract_new)
+  #abstract_df
+```
+
+```{r}
+  abstract_df_new=tibble::enframe(abstract_df)%>%  separate(value,paste0('a',seq(10)),sep='\\|') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('label','nlmCategory','content'),sep='\\*')
+```
+
+```{r}
+abstract_df_new 
+```
+### Create the article abstract df
+```{r}
+abstract_df_new_done=abstract_df_new %>% 
+  dplyr::rename(
+    articleID = name,
+    )
+abstract_df_new_done
+```
+```{r}
+abstract_df_new_trans <- subset( abstract_df_new_done, select = -c(index))
+abstract_df_new_trans
+```
+
+```{r}
+abstract_df_new_trans <- tibble::rowid_to_column( abstract_df_new_trans, "abstractID")
+abstract_df_new_trans
+```
+## Abstract DF
+```{r}
+abstract_all <- subset(abstract_df_new_trans, select = -c(articleID))
+abstract_all
+```
+
+## abstract article
+```{r}
+abstract_df_new_all <- subset(abstract_df_new_trans, select = -c(label,nlmCategory,content))
+abstract_df_new_all
+```
+
+
+### Creating the elocation  dataframe
 ```{r}
 elocation=xpathSApply(xmlRoot,'//ELocationID', xmlValue)
-elocation
+#elocation
 ```
+
+
+
 ```{r}
 # Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
 geloc=function(xmlNode){
   #print(xmlNode)
-    x<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
+    xmlNodecopy <- duplicate(xmlNode)
+    x<-newXMLDoc(xmlNodecopy)
+    xmlNodecopy1 <- duplicate(xmlNode)
+    y<-newXMLDoc(xmlNodecopy1)
     #y<<-xmlNodecopy
-    vec=xpathSApply(x,'//ELocationID/*',xmlValue)
+    vec=xpathSApply(x,'//ELocationID',xmlGetAttr,'EIdType')
+    vec1=xpathSApply(y,'//ELocationID',xmlValue)
+
     #datestring=paste(vec, collapse = '')
-  return (paste(vec, xmlGetAttr(xmlNode,'EIdType'),sep='|'))
-}
-```
-```{r}
-
-```
-
-```{r}
-## pointer is a pointer to a subtree. 
-eloc=function(xmlNode){
-    #made a brand new tree of the subtree
-    x<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    vec=xpathSApply(x,'//ELocationID',geloc)
-    ## collapse the vector into a single string separated by stars
-  return (paste(vec,collapse='*'))
+  return (paste(vec,vec1, collapse='|',sep='*'))
 }
 ```
 
 ```{r}
-e_new=xpathSApply(xmlRoot,'/ELocationID', xmlValue)
-e_new
+  elocation_df=xpathSApply(xmlRoot,'//Article',geloc)
+  #elocation_df
 ```
 
 ```{r}
-eloc_new=xpathSApply(xmlRoot,'/ElocationID', eloc)
-eloc_new
+  elocation_df_new=tibble::enframe(  elocation_df)%>%  separate(value,paste0('e',seq(10)),sep='\\|') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('type','content'),sep='\\*')
+```
+```{r}
+  elocation_df_new
 ```
 
 
 ```{r}
-#elocation_df=tibble::enframe(elocation)%>%  #separate(value,paste0('p',seq(10)),sep='\\*') %>% #pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) #%>% separate(col=data, into = c('Type','content'),sep='\\|')
+ elocation_df_new <- tibble::rowid_to_column( elocation_df_new, "elocID")
+ elocation_df_new
+```
+
+
+```{r}
+ elocation_df_new <- subset( elocation_df_new, select = -c(name,index))
+
+```
+
+```{r}
+ elocation_df_new
+ test_elocation_df_new=elocation_df_new %>% distinct(type)
+ test_elocation_df_new
+ test_elocation_df_new_final <- tibble::rowid_to_column( test_elocation_df_new, "elocID")
+ test_elocation_df_new_final
+```
+```{r}
+datC <- merge( test_elocation_df_new_final,  elocation_df_new, all.x=TRUE)
+datC
+```
+## elocation DF
+
+
+```{r}
+#elocation_df_final_df=datC %>% 
+  #dplyr::rename(
+  #  articleID = elocID,
+   # elocID=typeID
+    #)
+```
+### Creating the article elocation  dataframe
+
+```{r}
+
+elocation_df_final_df_done <- subset( elocation_df_final_df, select = -c(type,content))
+elocation_df_final_df_done
+```
+
+```{r}
+#elocation_df_done <- #data.frame(articleid=elocation_df_final_df[3],elocid=elocation_df_final_df[2])
+#elocation_df_done
 ```
 ### Creating Publication Type Dataframe
 ```{r}
 pubtype=xpathSApply(xmlRoot,'//PublicationTypeList', xmlValue)
-pubtype
+#pubtype
 ```
 
 
@@ -450,42 +507,92 @@ pubtype_new_df
 
 ```{r}
 pubtype_new_df_prelim <- subset(pubtype_new_df, select = -c(index))
-pubtype_new_df_prelim
+#pubtype_new_df_prelim
 ```
+
+
 ```{r}
-pubtype_new_df_prelim_inp=pubtype_new_df_prelim %>% 
-  rename(
-    articleID = name,
+pubtype_new_df_prelim_new=pubtype_new_df_prelim %>% 
+  dplyr::rename(
+    articleID = name
     )
 ```
 
 ```{r}
-pubtype_new_df_prelim_inp
-```
-### Creating Article Pub Type Dataframe
-```{r}
-pubtype_new_df_prelim_inp <- tibble::rowid_to_column(pubtype_new_df_prelim_inp, "pubtypeID")
-pubtype_new_df_prelim_inp
+newdf=pubtype_new_df_prelim_inp
 ```
 
 ```{r}
-article_pub_type_df <- subset(pubtype_new_df_prelim_inp, select = -c(type))
-article_pub_type_df
+pubtype_new_df_prelim_inp_distinct=pubtype_new_df_prelim_inp %>% distinct(type)
+#pubtype_new_df_prelim_inp_distinct
 ```
-## Creating Grant Dataframe
+
+## PubType DF
+```{r}
+pubtype_new_df_final <- tibble::rowid_to_column(pubtype_new_df_prelim_inp_distinct, "pubTypeID")
+pubtype_new_df_final
+```
+
+### Creating Article Pub Type Dataframe
+```{r}
+datP <- merge( pubtype_new_df_final,  pubtype_new_df_prelim_new, all.x=TRUE)
+#datP
+```
+## Article Pub Type
+```{r}
+pubtype_new_df_final_done <- subset(datP, select = -c(type))
+pubtype_new_df_final_done
+```
+
+
+```{r}
+#install.packages("plyr")
+#library("plyr") 
+#library(plyr)
+#library(dplyr)
+
+```
+
+```{r}
+#require(data.table)
+#newdf1 <- data.table(newdf, key="type")
+#pubtype_new_df_final <- data.table(pubtype_new_df_final, key="type")
+
+#rslt = pubtype_new_df_final[newdf1,allow.cartesian=TRUE][,list(type = unique(type), articleID=length(articleID)),by=type]
+#rslt
+
+```
+
+
+```{r}
+#grant_df_resolved<- #data.frame(articleid=grant_df_in_p_1[2],grantid=grant_df_in_p_1[4],acronym=gra#nt_df_in_p_1[5],agency=grant_df_in_p_1[6],country=grant_df_in_p_1[7])
+```
+
+
+```{r}
+#article_pub_type_df <- subset(newdf, select = -c(type))
+#article_pub_type_df
+```
+
+
+
+## Creating Grant Dataframe-in progress
 ```{r}
 grant=xpathSApply(xmlRoot,'//Grant', xmlValue)
-grant
 ```
 
 ```{r}
 get_grant=function(xmlNode){
-  #print(xmlNode)
-    gg<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
+ # print(xmlNode)
+    xmlNodecopy2 <- duplicate(xmlNode)
+    gg<-newXMLDoc(xmlNodecopy2)
     #y<<-xmlNodecopy
-    GrantList=xpathSApply(gg,'//Grant/*',xmlValue)
-  return (paste(GrantList))
+    grantId=xpathSApply(gg,'//GrantID',xmlValue)
+    acronym=xpathSApply(gg,'//Acronym',xmlValue)
+    agency=xpathSApply(gg,'//Agency',xmlValue)
+    country=xpathSApply(gg,'//Country',xmlValue)
+
+  return (paste(grantId,acronym,agency,country, sep='*'))
 }
 ```
 
@@ -493,38 +600,149 @@ get_grant=function(xmlNode){
 grant_columns=function(xmlNode){
     #made a brand new tree of the subtree
     #print(xmlNode)
-
-    gc<-newXMLDoc(xmlNode)
+    newxmlNodecopy2 <- duplicate(xmlNode)
+    gc<-newXMLDoc(newxmlNodecopy2)
     # for each pointer
     ## getting all the pubmedubdate information of subtree
    ## vec is a pipe delimited pubstatus
     grantvec=xpathSApply(gc,'//Grant',get_grant)
     ## collapse the vector into a single string separated by stars
-  return (paste(grantvec,collapse='*'))
+  return (paste(grantvec,collapse='|'))
 }
 ```
 
+
 ```{r}
-grant_new=xpathSApply(xmlRoot,'//PubmedArticle//GrantList/Grant', grant_columns)
-grant_new
+get_grant_test=function(xmlNode){
+  xmlNodecopy3 <- duplicate(xmlNode)
+  gd<-newXMLDoc(xmlNodecopy3)
+  grant_check= xpathSApply(gd,'//GrantList', grant_columns)
+
+  if(length(grant_check)==0){
+    return ("")
+  }
+  return (grant_check)
+
+}
+
+
+
 ```
 
 ```{r}
-grant_new_df=tibble::enframe(grant_new)%>%
-#separate(value,paste0('p',seq(19)),sep='\\*') %>%
-  pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('grantid', 'acronym','agency','country'),sep='\\*')
-grant_new_df
+grant_list_a = xpathSApply(xmlRoot,'//Article', get_grant_test)
+#grant_list_a
+```
 
+```{r}
+  grant_list_a_new=tibble::enframe(grant_list_a )%>%  separate(value,paste0('g',seq(10)),sep='\\|') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('grantid','acronym','agency','country'),sep='\\*')
+```
 
-#pubvec1=xpathSApply(xmlRoot,'//PublicationTypeList',xmlValue)
+```{r}
+grant_list_a_new
+```
+
+```{r}
+grant_df_in_p_1 <- tibble::rowid_to_column(grant_df_in_p, "articleID")
+grant_df_in_p_1
 
 ```
-## Creating the article table-not started
+```{r}
+grant_df_resolved<- data.frame(articleid=grant_df_in_p_1[2],grantid=grant_df_in_p_1[4],acronym=grant_df_in_p_1[5],agency=grant_df_in_p_1[6],country=grant_df_in_p_1[7])
+grant_df_resolved
+```
+```{r}
+grant_df_resolved_final=grant_df_resolved %>% 
+  dplyr::rename(
+      articleid=name
+    )
+grant_df_resolved_final
+```
+##Grant DF
+```{r}
+grant_df_resolved_done=grant_df_resolved %>% distinct(grantid,agency,acronym)
+grant_df_resolved_done
+```
+
+
+## Article grant dataframe
+```{r}
+article_grant_df_final <- data.frame(articleid=grant_df_resolved_final[1],journalid=grant_df_resolved_final[2])
+#article_grant_df_final
+article_grant_df_final_done=article_grant_df_final %>% distinct(articleid,grantid)
+article_grant_df_final_done
+```
+## Creating the article dataframe
+
+```{r}
+articleDetails = xpathSApply(xmlRoot,'//Article', xmlValue)
+#articleDetails
+#tibble::enframe(articleDetails)
+
+```
+
+```{r}
+final_Journal_df
+```
+
+```{r}
+articlepubModel = xpathSApply(xmlRoot,'//Article', xmlGetAttr,'PubModel')
+#articlepubModel
+```
 
 
 ```{r}
-articleDetails = xpathSApply(xmlRoot,'//PubmedArticle//Article', xmlValue)
-articleDetails
-tibble::enframe(articleDetails)
+articletitle = xpathSApply(xmlRoot,'//Article/ArticleTitle', xmlValue)
+#articletitle
+```
+```{r}
+articlep= xpathSApply(xmlRoot,'//Article/Pagination', xmlValue)
+articlep
+```
+
+
+```{r}
+get_date=function(xmlNode){
+  xmlNodecopy3 <- duplicate(xmlNode)
+  gd<-newXMLDoc(xmlNodecopy3)
+  get_date_check= xpathSApply(gd,'//ArticleDate', xmlValue)
+
+  if(length(get_date_check)==0){
+    return ("")
+  }
+  return (get_date_check)
+
+}
 
 ```
+
+
+```{r}
+articled= xpathSApply(xmlRoot,'//Article', get_date)
+articled
+```
+
+```{r}
+articlel= xpathSApply(xmlRoot,'//Article/Language', xmlValue)
+#articlel
+```
+
+```{r}
+grabbing_index <- tibble::rowid_to_column(final_Journal_df, "articleID")
+#grabbing_index
+#articlel
+#unlist(grabbing_index[1])
+```
+
+
+```{r}
+article_df_final <- data.frame(articleid=grabbing_index[1],journalid=grabbing_index[2],pubModel=articlepubModel,articleTitle=articletitle,pagination=articlep,date=articled,language=articlel)
+article_df_final
+```
+## Article DF
+```{r}
+article_df_final$date=ymd(article_df_final$date)
+article_df_final
+```
+
+
