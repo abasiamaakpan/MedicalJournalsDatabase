@@ -32,8 +32,8 @@ con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
 ```{r}
 # define function to retrieve authors list
 single_author_list <- function(xmlNode) {
-  xmlNodecopy <- duplicate(xmlNode)
-  xcopy <- newXMLDoc(xmlNodecopy)
+  xmlNodeCopy <- duplicate(xmlNode)
+  xcopy <- newXMLDoc(xmlNodeCopy)
   lastname <- xpathSApply(xcopy, '//LastName', xmlValue)
   firstname <- xpathSApply(xcopy, '//ForeName', xmlValue)
   initials <- xpathSApply(xcopy, '//Initials', xmlValue)
@@ -43,8 +43,8 @@ single_author_list <- function(xmlNode) {
 
 # parse attributes and elements on each authors node
 get_authors <- function(xmlNode) {
-  newxmlNodecopy <- duplicate(xmlNode)
-  pb<-newXMLDoc(newxmlNodecopy)
+  newxmlNodeCopy <- duplicate(xmlNode)
+  pb<-newXMLDoc(newxmlNodeCopy)
   g <-newXMLDoc(xmlNode)
   names=xpathSApply(g,'//Author',single_author_list)
   names_single_string=paste(names,collapse='|')
@@ -287,9 +287,11 @@ history_df
 articleID = history_data[1]
 articleID %>% dplyr::rename(article_id = name)
 
-# create article-history data frame
+# format article-history data frame
 article_history_df <- data.frame(historyid = history_df[1], articleidentifier = newarticleID)
 article_history_df <- article_history_df %>% dplyr::rename(ArticleID = name)
+
+# create article-history data frame
 article_history_df
 ```
 
@@ -340,76 +342,109 @@ res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
 dbFetch(res)
 ```
 
-
-
-### Creating the abstract dataframe
-
-```{r}
-#trying to get all pub statuses for each pubmedarticle and pubmed data
-##Getting all the abstract
-abstract=xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
-#aabstract
-```
+### 2.4 Abstracts: Parsing and Importing data
+#### 2.4.1 Creating the Abstracts dataframe
 
 ```{r}
-abstract_new=function(xmlNode){
-  #print(xmlNode)
-    xmlNodecopy <- duplicate(xmlNode)
-    x<-newXMLDoc(xmlNodecopy)
-    xmlNodecopy1 <- duplicate(xmlNode)
-    y<-newXMLDoc(xmlNodecopy1)
-    xmlNodecopy2 <- duplicate(xmlNode)
-    z<-newXMLDoc(xmlNodecopy2)
-    #y<<-xmlNodecopy
-    vec=xpathSApply(x,'//AbstractText',xmlGetAttr,'Label')
-    vec1=xpathSApply(y,'//AbstractText',xmlGetAttr,'NlmCategory')
-    vec2=xpathSApply(z,'//AbstractText',xmlValue)
-    
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
 
-    #datestring=paste(vec, collapse = '')
-  return (paste(vec,vec1,vec2, collapse='|',sep='*'))
+# get all abstract nodes
+abstract <- xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
+
+# define function to parse each abstract node 
+abstract_parse <- function(xmlNode) {
+  # make copy of node
+  xmlNodeCopy <- duplicate(xmlNode)
+  # create new XML
+  x <- newXMLDoc(xmlNodeCopy)
+  
+  xmlNodeCopy_1 <- duplicate(xmlNode)
+  y <- newXMLDoc(xmlNodeCopy_1)
+  xmlNodeCopy_2 <- duplicate(xmlNode)
+  
+  z <- newXMLDoc(xmlNodeCopy_2)
+  
+  # extract XML attributes and value
+  Label <- xpathSApply(x, '//AbstractText', xmlGetAttr, 'Label')
+  NMLCategory <- xpathSApply(y, '//AbstractText', xmlGetAttr, 'NlmCategory')
+  Text <- xpathSApply(z, '//AbstractText', xmlValue)
+
+  return (paste(Label, NMLCategory, Text, collapse='|',sep='*'))
 }
+
+# get article nodes
+abstracts <- xpathSApply(xmlRoot, '//Article', abstract_parse)
+
+abstracts_df_temp <- tibble::enframe(abstracts) %>% separate(value, paste0('a', seq(10)), sep = '\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Label','NMLCategory','Content'), sep='\\*')
+
+# rename column
+abstracts_df_temp <- abstracts_df_temp %>% dplyr::rename(ArticleID = name)
+
+# exclude index column 
+abstracts_df_formatted <- subset(abstracts_df_temp, select = -c(index))
+abstracts_df_formatted <- tibble::rowid_to_column(abstracts_df_formatted, "AbstractID")
+
+# exclude ArticleID column 
+abstracts_df <- subset(abstracts_df_formatted, select = -c(ArticleID))
+
+# create abstracts data frame
+abstracts_df
+```
+```{r}
+# create article-abstract data frame
+article_abstract_df <- subset(abstracts_df_formatted, select = -c(Label, NMLCategory, Content))
+article_abstract_df
+```
+
+#### 2.3.3 Importing Abstracts and Article-Abstract into the database
+```{r}
+# drop abstracts table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS abstracts;
+")
+
+# create abstracts table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS abstracts
+  (
+    abstract_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    nml_category TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO abstracts (abstract_id, label, nml_category, content) VALUES (:AbstractID, :Label, :NMLCategory, :Content);", abstracts_df)
+res <- dbSendQuery(con, "SELECT * FROM abstracts LIMIT 5;")
+dbFetch(res)
 ```
 
 ```{r}
-  abstract_df=xpathSApply(xmlRoot,'//Article',abstract_new)
-  #abstract_df
-```
+# drop article_abstract table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_abstract;
+")
 
-```{r}
-abstract_df_new=tibble::enframe(abstract_df) %>%  separate(value,paste0('a',seq(10)),sep='\\|') %>% pivot_longer(!name, names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('label','nlmCategory','content'),sep='\\*')
-```
+# create article_history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_abstract
+  (
+    abstract_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, abstract_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (abstract_id) REFERENCES abstracts (abstract_id)
+  );
+")
 
-```{r}
-abstract_df_new 
-```
-### Create the article abstract df
-```{r}
-abstract_df_new_done=abstract_df_new %>% 
-  dplyr::rename(
-    articleID = name,
-    )
-abstract_df_new_done
-```
-```{r}
-abstract_df_new_trans <- subset( abstract_df_new_done, select = -c(index))
-abstract_df_new_trans
-```
-
-```{r}
-abstract_df_new_trans <- tibble::rowid_to_column( abstract_df_new_trans, "abstractID")
-abstract_df_new_trans
-```
-## Abstract DF
-```{r}
-abstract_all <- subset(abstract_df_new_trans, select = -c(articleID))
-abstract_all
-```
-
-## abstract article
-```{r}
-abstract_df_new_all <- subset(abstract_df_new_trans, select = -c(label,nlmCategory,content))
-abstract_df_new_all
+# load data into article abstract table
+res <- dbSendQuery(con, "INSERT INTO article_abstract (abstract_id, article_id) VALUES (:AbstractID, :ArticleID);", article_abstract_df)
+res <- dbSendQuery(con, "SELECT * FROM article_abstract LIMIT 5;")
+dbFetch(res)
 ```
 
 
@@ -425,11 +460,11 @@ elocation=xpathSApply(xmlRoot,'//ELocationID', xmlValue)
 # Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
 geloc=function(xmlNode){
   #print(xmlNode)
-    xmlNodecopy <- duplicate(xmlNode)
-    x<-newXMLDoc(xmlNodecopy)
-    xmlNodecopy1 <- duplicate(xmlNode)
-    y<-newXMLDoc(xmlNodecopy1)
-    #y<<-xmlNodecopy
+    xmlNodeCopy <- duplicate(xmlNode)
+    x<-newXMLDoc(xmlNodeCopy)
+    xmlNodeCopy_1 <- duplicate(xmlNode)
+    y<-newXMLDoc(xmlNodeCopy_1)
+    #y<<-xmlNodeCopy
     vec=xpathSApply(x,'//ELocationID',xmlGetAttr,'EIdType')
     vec1=xpathSApply(y,'//ELocationID',xmlValue)
 
@@ -506,8 +541,8 @@ pubtype=xpathSApply(xmlRoot,'//PublicationTypeList', xmlValue)
 get_pub_type=function(xmlNode){
   #print(xmlNode)
     gtb<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
+    #xmlNodeCopy <- duplicate(xmlNode)
+    #y<<-xmlNodeCopy
     PublicationTypeList=xpathSApply(gtb,'//PublicationTypeList/*',xmlValue)
   return (paste(PublicationTypeList))
 }
@@ -592,9 +627,9 @@ grant=xpathSApply(xmlRoot,'//Grant', xmlValue)
 ```{r}
 get_grant=function(xmlNode){
  # print(xmlNode)
-    xmlNodecopy2 <- duplicate(xmlNode)
-    gg<-newXMLDoc(xmlNodecopy2)
-    #y<<-xmlNodecopy
+    xmlNodeCopy_2 <- duplicate(xmlNode)
+    gg<-newXMLDoc(xmlNodeCopy_2)
+    #y<<-xmlNodeCopy
     grantId=xpathSApply(gg,'//GrantID',xmlValue)
     acronym=xpathSApply(gg,'//Acronym',xmlValue)
     agency=xpathSApply(gg,'//Agency',xmlValue)
@@ -608,8 +643,8 @@ get_grant=function(xmlNode){
 grant_columns=function(xmlNode){
     #made a brand new tree of the subtree
     #print(xmlNode)
-    newxmlNodecopy2 <- duplicate(xmlNode)
-    gc<-newXMLDoc(newxmlNodecopy2)
+    newxmlNodeCopy_2 <- duplicate(xmlNode)
+    gc<-newXMLDoc(newxmlNodeCopy_2)
     # for each pointer
     ## getting all the pubmedubdate information of subtree
    ## vec is a pipe delimited pubstatus
@@ -622,8 +657,8 @@ grant_columns=function(xmlNode){
 
 ```{r}
 get_grant_test=function(xmlNode){
-  xmlNodecopy3 <- duplicate(xmlNode)
-  gd<-newXMLDoc(xmlNodecopy3)
+  xmlNodeCopy3 <- duplicate(xmlNode)
+  gd<-newXMLDoc(xmlNodeCopy3)
   grant_check= xpathSApply(gd,'//GrantList', grant_columns)
 
   if(length(grant_check)==0){
@@ -711,8 +746,8 @@ articlep
 
 ```{r}
 get_date=function(xmlNode){
-  xmlNodecopy3 <- duplicate(xmlNode)
-  gd<-newXMLDoc(xmlNodecopy3)
+  xmlNodeCopy3 <- duplicate(xmlNode)
+  gd<-newXMLDoc(xmlNodeCopy3)
   get_date_check= xpathSApply(gd,'//ArticleDate', xmlValue)
 
   if(length(get_date_check)==0){
