@@ -75,6 +75,7 @@ get_authors=function(xmlNode){
 
 ```{r}
 author_list = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
+author_list 
 ```
 
 ```{r}
@@ -418,43 +419,49 @@ geloc=function(xmlNode){
 
 
 ```{r}
- elocation_df_new <- subset( elocation_df_new, select = -c(name,index))
+ elocation_df_new_final <- subset( elocation_df_new, select = -c(index))
 
 ```
 
 ```{r}
- elocation_df_new
- test_elocation_df_new=elocation_df_new %>% distinct(type)
- test_elocation_df_new
- test_elocation_df_new_final <- tibble::rowid_to_column( test_elocation_df_new, "elocID")
- test_elocation_df_new_final
+ elocation_df_new_final
 ```
 ```{r}
-datC <- merge( test_elocation_df_new_final,  elocation_df_new, all.x=TRUE)
-datC
+elocation_df_new_final= elocation_df_new_final%>% 
+  dplyr::rename(
+    articleID = name,
+    
+    )
 ```
-## elocation DF
-
 
 ```{r}
-#elocation_df_final_df=datC %>% 
-  #dplyr::rename(
-  #  articleID = elocID,
-   # elocID=typeID
-    #)
+ elocation_df_new_final
 ```
+
+
 ### Creating the article elocation  dataframe
-
 ```{r}
-
-elocation_df_final_df_done <- subset( elocation_df_final_df, select = -c(type,content))
-elocation_df_final_df_done
+article_elocation <- subset(elocation_df_new_final, select = -c(articleID))
 ```
 
 ```{r}
-#elocation_df_done <- #data.frame(articleid=elocation_df_final_df[3],elocid=elocation_df_final_df[2])
-#elocation_df_done
+article_elocation
 ```
+## Creating the elocationDF
+```{r}
+ elocation_df_new_final_finished<- subset(elocation_df_new_final, select = -c(type,content))
+```
+
+```{r}
+ elocation_df_new_final_finished
+```
+
+
+```{r}
+#datC <- merge( test_elocation_df_new_final,  elocation_df_new, all.x=TRUE)
+#datC
+```
+
 ### Creating Publication Type Dataframe
 ```{r}
 pubtype=xpathSApply(xmlRoot,'//PublicationTypeList', xmlValue)
