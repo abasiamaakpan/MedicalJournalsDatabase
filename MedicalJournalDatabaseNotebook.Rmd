@@ -684,102 +684,135 @@ res <- dbSendQuery(con, "SELECT * FROM article_pub_type LIMIT 5;")
 dbFetch(res)
 ```
 
-## Creating Grant Dataframe-in progress
-```{r}
-grant=xpathSApply(xmlRoot,'//Grant', xmlValue)
-```
+### 2.7 Grants: Parsing and Importing data
+#### 2.7.1 Creating the Grants dataframe
 
 ```{r}
-get_grant=function(xmlNode){
- # print(xmlNode)
-    xmlNodeCopy_2 <- duplicate(xmlNode)
-    gg<-newXMLDoc(xmlNodeCopy_2)
-    #y<<-xmlNodeCopy
-    grantId=xpathSApply(gg,'//GrantID',xmlValue)
-    acronym=xpathSApply(gg,'//Acronym',xmlValue)
-    agency=xpathSApply(gg,'//Agency',xmlValue)
-    country=xpathSApply(gg,'//Country',xmlValue)
+# define function parse each grant node
+get_grant <- function(xmlNode) {
+  # make copy of grant node
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  
+  GrantId <- xpathSApply(grant, '//GrantID', xmlValue)
+  Acronym <- xpathSApply(grant, '//Acronym', xmlValue)
+  Agency <- xpathSApply(grant, '//Agency', xmlValue)
+  Country <- xpathSApply(grant, '//Country', xmlValue)
 
-  return (paste(grantId,acronym,agency,country, sep='*'))
+  return (paste(GrantId, Acronym, Agency, Country, sep = '*'))
 }
-```
 
-```{r}
-grant_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    #print(xmlNode)
-    newxmlNodeCopy_2 <- duplicate(xmlNode)
-    gc<-newXMLDoc(newxmlNodeCopy_2)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    grantvec=xpathSApply(gc,'//Grant',get_grant)
-    ## collapse the vector into a single string separated by stars
-  return (paste(grantvec,collapse='|'))
+# get columns of grants
+get_grant_columns <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  
+  grant_vec <- xpathSApply(grant, '//Grant', get_grant)
+  
+  # collapse the vector into a single string separated by pipe characters
+  return (paste(grant_vec, collapse = '|'))
 }
-```
 
+# get list of grants
+get_grants_list <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  grant_check <- xpathSApply(grant, '//GrantList', get_grant_columns)
 
-```{r}
-get_grant_test=function(xmlNode){
-  xmlNodeCopy3 <- duplicate(xmlNode)
-  gd<-newXMLDoc(xmlNodeCopy3)
-  grant_check= xpathSApply(gd,'//GrantList', grant_columns)
-
-  if(length(grant_check)==0){
-    return ("")
+  if(length(grant_check) == 0) {
+    return ('')
   }
+  
   return (grant_check)
-
 }
 
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
 
+# get grants list from articles
+grants = xpathSApply(xmlRoot, '//Article', get_grants_list)
 
+# set up grants data frame
+grants_df_temp <- tibble::enframe(grants) %>%  separate(value, paste0('g', seq(10)), sep = '\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('GrantID', 'Acronym', 'Agency', 'Country'), sep = '\\*')
+
+# format grants data frame
+grants_df_temp <- tibble::rowid_to_column(grants_df_temp, "ArticleID")
+
+# assign columns to data frame
+grants_df_temp <- data.frame(ArticleID = grants_df_temp[2], GrantID = grants_df_temp[4], Acronym = grants_df_temp[5], Agency = grants_df_temp[6], Country = grants_df_temp[7])
+
+# remove duplicate records
+grants_df <- grants_df_temp %>% distinct(GrantID, Agency, Acronym)
+
+# return grants data frame
+grants_df
+```
+
+#### 2.7.2 Creating the Article-Grant dataframe
+```{r}
+article_grant_df <- data.frame(ArticleID = grants_df_temp[1], GrantID = grants_df_temp[2])
+
+# delete duplicate records
+article_grant_df <- article_grant_df_temp %>% distinct(name, GrantID)
+
+# rename ArticleID column
+article_grant_df <- article_grant_df %>% dplyr::rename(ArticleID = name)
+
+# return article grant data frame 
+article_grant_df
+```
+#### 2.7.3 Importing Grants and Article-Grants into the database
+```{r}
+# drop grants table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS grants;
+")
+
+# create grants table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS grants
+  (
+    grant_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT,
+    acronym TEXT NOT NULL,
+    agency TEXT NOT NULL,
+    country TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO grants (grant_id, id, acronym, agency, country) VALUES (:UniqueGrantID, :GrantId, :Acronym, :Agency, :Country);", grants_df)
+res <- dbSendQuery(con, "SELECT * FROM grants LIMIT 5;")
+
+dbFetch(res)
 ```
 
 ```{r}
-grant_list_a = xpathSApply(xmlRoot,'//Article', get_grant_test)
-#grant_list_a
+# drop article_grant table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_grant;
+")
+
+# create article_grant table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_grant
+  (
+    grant_id TEXT,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, grant_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (grant_id) REFERENCES grants (grant_id)
+  );
+")
+
+# load data into article_grant table
+res <- dbSendQuery(con, "INSERT INTO article_grant (grant_id, article_id) VALUES (:UniqueGrantID, :ArticleID);", article_pub_type_df)
+res <- dbSendQuery(con, "SELECT * FROM article_grant LIMIT 5;")
+dbFetch(res)
 ```
 
-```{r}
-  grant_list_a_new=tibble::enframe(grant_list_a )%>%  separate(value,paste0('g',seq(10)),sep='\\|') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('grantid','acronym','agency','country'),sep='\\*')
-```
-
-```{r}
-grant_list_a_new
-```
-
-```{r}
-grant_df_in_p_1 <- tibble::rowid_to_column(grant_df_in_p, "articleID")
-grant_df_in_p_1
-
-```
-```{r}
-grant_df_resolved<- data.frame(articleid=grant_df_in_p_1[2],grantid=grant_df_in_p_1[4],acronym=grant_df_in_p_1[5],agency=grant_df_in_p_1[6],country=grant_df_in_p_1[7])
-grant_df_resolved
-```
-```{r}
-grant_df_resolved_final=grant_df_resolved %>% 
-  dplyr::rename(
-      articleid=name
-    )
-grant_df_resolved_final
-```
-##Grant DF
-```{r}
-grant_df_resolved_done=grant_df_resolved %>% distinct(grantid,agency,acronym)
-grant_df_resolved_done
-```
-
-
-## Article grant dataframe
-```{r}
-article_grant_df_final <- data.frame(articleid=grant_df_resolved_final[1],journalid=grant_df_resolved_final[2])
-#article_grant_df_final
-article_grant_df_final_done=article_grant_df_final %>% distinct(articleid,grantid)
-article_grant_df_final_done
-```
 ## Creating the article dataframe
 
 ```{r}
