@@ -25,6 +25,7 @@ library(lubridate)
 # create an ephemeral in-memory RSQLite database
 con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
 ```
+
 ## 2. XML Parsing and Loading data into the database
 
 ### 2.1 Authors: Parsing and Importing data
@@ -449,9 +450,7 @@ dbFetch(res)
 ```
 
 ### 2.5 Elocations: Parsing and Importing data
-#### 2.5.1 Creating the Elocations and Article-Elocations dataframe
-
-### Creating the Elocations and Article-Elocations dataframe
+#### 2.5.1 Creating the Elocations dataframe
 ```{r}
 # LOOKS LIKE THIS DOESN'T DO ANYTHING
 elocation <- xpathSApply(xmlRoot, '//ELocationID', xmlValue)
@@ -483,17 +482,75 @@ xmlRoot <- xmlRoot(xmlDOM)
 # get article nodes
 elocations <- xpathSApply(xmlRoot, '//Article', elocation_parser)
 
-elocations_df_temp <- tibble::enframe(elocations) %>% separate(value, paste0('e', seq(10)), sep='\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('type', 'content'), sep = '\\*')
+elocations_df_temp <- tibble::enframe(elocations) %>% separate(value, paste0('e', seq(10)), sep='\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Type', 'Content'), sep = '\\*')
 
 # add elocation id column
-elocations_df <- tibble::rowid_to_column(elocations_df_temp, "ElocID")
+elocations_df_temp <- tibble::rowid_to_column(elocations_df_temp, "ElocID")
 
 # exclude name and index column
-elocations_df <- subset(elocations_df, select = -c(name, index))
+elocations_df <- subset(elocations_df_temp, select = -c(name, index))
 
-# print elocation data frame
+# return elocations data frame
 elocations_df
 ```
+#### 2.5.2 Creating the Article-Elocations dataframe
+```{r}
+# print elocation data frame
+article_elocations_df_temp <- elocations_df_temp %>% dplyr::rename(ArticleID = name)
+article_elocations_df <- subset(article_elocations_df_temp, select = -c(index, Type, Content))
+
+# return article elocations data frame
+article_elocations_df
+```
+
+
+#### 2.6.3 Importing Elocations and Article-Elocation into the database
+```{r}
+# drop elocations table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS elocations;
+")
+
+# create pub_types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS elocations
+  (
+    elocation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO elocations (elocation_id, type, content) VALUES (:ElocID, :Type, :Content);", elocations_df)
+res <- dbSendQuery(con, "SELECT * FROM elocations LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# drop article_elocation table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_elocation;
+")
+
+# create article_elocations table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_elocations
+  (
+    elocation_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, elocation_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (elocation_id) REFERENCES elocations (elocation_id)
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO article_elocations (elocation_id, article_id) VALUES (:ElocID, :ArticleID);", article_elocations_df)
+res <- dbSendQuery(con, "SELECT * FROM article_elocations LIMIT 5;")
+dbFetch(res)
+```
+
 #### TODO: CHECK ELOCATIONS DF, UPDATE ARTICLE-ELOCATION DF, CHECK DATA QUALITY ON BOTH, IMPORT BOTH 
 ```{r}
 # read XML file and parse into DOM
