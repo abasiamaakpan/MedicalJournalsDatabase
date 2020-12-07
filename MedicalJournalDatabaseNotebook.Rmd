@@ -451,7 +451,7 @@ dbFetch(res)
 ### 2.5 Elocations: Parsing and Importing data
 #### 2.5.1 Creating the Elocations and Article-Elocations dataframe
 
-### Creating the elocation  dataframe
+### Creating the Elocations and Article-Elocations dataframe
 ```{r}
 # LOOKS LIKE THIS DOESN'T DO ANYTHING
 elocation <- xpathSApply(xmlRoot, '//ELocationID', xmlValue)
@@ -584,93 +584,104 @@ elocation_df_final_df_done
 #elocation_df_done <- #data.frame(articleid=elocation_df_final_df[3],elocid=elocation_df_final_df[2])
 #elocation_df_done
 ```
-### Creating Publication Type Dataframe
-```{r}
-pubtype=xpathSApply(xmlRoot,'//PublicationTypeList', xmlValue)
-#pubtype
-```
 
-
+### 2.6 Publication Types: Parsing and Importing data
+#### 2.6.1 Creating the Publication Types dataframe
 ```{r}
-get_pub_type=function(xmlNode){
-  #print(xmlNode)
-    gtb<-newXMLDoc(xmlNode)
-    #xmlNodeCopy <- duplicate(xmlNode)
-    #y<<-xmlNodeCopy
-    PublicationTypeList=xpathSApply(gtb,'//PublicationTypeList/*',xmlValue)
+# define function to retrieve publication type node
+get_pub_type <- function(xmlNode) {
+  gtb <- newXMLDoc(xmlNode)
+  
+  PublicationTypeList <- xpathSApply(gtb, '//PublicationTypeList/*', xmlValue)
+  
   return (paste(PublicationTypeList))
 }
-```
 
-```{r}
-pubtype_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    #print(xmlNode)
+# define function to retrieve publication type node
+pub_type_columns <- function(xmlNode) {
+  publication <- newXMLDoc(xmlNode)
+  publication_vec <- xpathSApply(publication, '//PublicationTypeList', get_pub_type)
 
-    pb<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    pubvec=xpathSApply(pb,'//PublicationTypeList',get_pub_type)
-    ## collapse the vector into a single string separated by stars
-  return (paste(pubvec,collapse='*'))
+  return (paste(publication_vec, collapse = '*'))
 }
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get publication types list
+publication_type <- xpathSApply(xmlRoot, '//PubmedArticle//PublicationTypeList', pub_type_columns)
+
+pub_types_df_temp <- tibble::enframe(publication_type) %>% separate(value, paste0('p', seq(10)), sep = '\\*') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Type'), sep = '\\*')
+
+# format data frame
+pub_types_df_temp <- subset(pub_types_df_temp, select = -c(index))
+pub_types_df_temp <- pub_types_df_temp %>% dplyr::rename(ArticleID = name)
+
+# only show unique type values
+pub_types_df <- pub_types_df_temp %>% distinct(Type)
+
+# add publication type id column
+pub_types_df <- tibble::rowid_to_column(pub_types_df, "PubTypeID")
+
+# return publication type data frame
+pub_types_df
+```
+#### 2.6.2 Creating the Article-Publication Types dataframe
+```{r}
+# create article publication type data frame
+article_pub_type_df <- merge(pub_types_df, pub_types_df_temp, all.x = TRUE)
+article_pub_type_df <- subset(article_pub_type_df, select = -c(Type))
+
+# return article publication type data frame
+article_pub_type_df
 ```
 
-
-
+#### 2.6.3 Importing Publication Types and Article-Publication Types into the database
 ```{r}
-pubtype_new=xpathSApply(xmlRoot,'//PubmedArticle//PublicationTypeList', pubtype_columns)
-#pubtype_new
+# drop pub_types table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS pub_types;
+")
+
+# create pub_types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS pub_types
+  (
+    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_name TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO pub_types (pub_type_id, pub_name) VALUES (:PubTypeID, :Type);", pub_types_df)
+res <- dbSendQuery(con, "SELECT * FROM pub_types LIMIT 5;")
+dbFetch(res)
 ```
 
 ```{r}
-pubtype_new_df=tibble::enframe(pubtype_new)%>%
-  separate(value,paste0('p',seq(10)),sep='\\*') %>%
-  pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('type'),sep='\\*')
-pubtype_new_df
+# drop article_pub_type table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_pub_type;
+")
 
-#pubvec1=xpathSApply(xmlRoot,'//PublicationTypeList',xmlValue)
+# create article_pub_type table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_pub_type
+  (
+    pub_type_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, pub_type_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (pub_type_id) REFERENCES pub_types (pub_type_id)
+  );
+")
 
-```
-
-```{r}
-pubtype_new_df_prelim <- subset(pubtype_new_df, select = -c(index))
-#pubtype_new_df_prelim
-```
-
-
-```{r}
-pubtype_new_df_prelim_new=pubtype_new_df_prelim %>% 
-  dplyr::rename(
-    articleID = name
-    )
-```
-
-```{r}
-newdf=pubtype_new_df_prelim_inp
-```
-
-```{r}
-pubtype_new_df_prelim_inp_distinct=pubtype_new_df_prelim_inp %>% distinct(type)
-#pubtype_new_df_prelim_inp_distinct
-```
-
-## PubType DF
-```{r}
-pubtype_new_df_final <- tibble::rowid_to_column(pubtype_new_df_prelim_inp_distinct, "pubTypeID")
-pubtype_new_df_final
-```
-
-### Creating Article Pub Type Dataframe
-```{r}
-datP <- merge(pubtype_new_df_final,  pubtype_new_df_prelim_new, all.x=TRUE)
-#datP
-```
-## Article Pub Type
-```{r}
-pubtype_new_df_final_done <- subset(datP, select = -c(type))
-pubtype_new_df_final_done
+# load data into article_pub_type table
+res <- dbSendQuery(con, "INSERT INTO article_pub_type (pub_type_id, article_id) VALUES (:PubTypeID, :ArticleID);", article_pub_type_df)
+res <- dbSendQuery(con, "SELECT * FROM article_pub_type LIMIT 5;")
+dbFetch(res)
 ```
 
 ## Creating Grant Dataframe-in progress
