@@ -1,18 +1,33 @@
 ---
-title: "R Notebook"
+title: "Practicum III"
+author: "Abasiama Akpan, Rebecca Brent, Alessia Pizzoccheri"
 output: html_notebook
 ---
 
-```{r}
+```{r, echo = FALSE}
 # install packages and libraries
-install.packages("RSQLite")
-install.packages("RSQLServer")
-install.packages("dplyr")
-install.packages("tidyr")
-install.packages('lubridate')
+# credit for function: https://vbaliga.github.io/verify-that-r-packages-are-installed-and-loaded/
+## If a package is installed, it will be loaded. If any 
+## are not, the missing package(s) will be installed 
+## from CRAN and then loaded.
+
+## First specify the packages of interest
+packages = c("RSQLite", "DBI", "XML", "rlang", 
+             "dplyr", "tidyr", "lubridate")
+
+## Now load or install&load all
+package.check <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
 ```
 
-```{r}
+```{r, echo = FALSE}
 library(dplyr)
 library(tidyr)
 library(DBI)
@@ -23,9 +38,9 @@ library(lubridate)
 
 ```{r}
 # create an ephemeral in-memory RSQLite database
-con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
 ```
-
+# Part 1. Load XML
 ## 1. Logical Model
 
 ![Logical Model](Practicum III - Relational Schema - Relational - FINALIZED.png)
@@ -197,6 +212,26 @@ journals_df_formatted <- journals_df_temp %>%
 
 # create journals data frame
 journals_df <- tibble::rowid_to_column(journals_df_formatted, "JournalID")
+
+# format the dates so they are consistent
+for (i in 1:nrow(journals_df)){
+  # remove any spaces
+  dates = gsub(" ", "", journals_df$PubDate[i], fixed=TRUE)
+  #split the string so we can access every character
+  dates = unlist(strsplit(dates, ""))
+  # the year is always the first 4 items
+  year = paste(dates[1:4], collapse="")
+  #check to make sure that there is a month, if no month (ie. dates length < 5 ) then assign Jan
+  if(length(dates) > 4){
+    # we will ignore anything after the first month listed to keep consistency (no spans)
+    month = paste(dates[5:7], collapse="")
+  } else {
+    month = "Jan"
+  }
+  # now concatenate the year and the month to get the consistently formatted pubdate
+  journals_df$PubDate[i] = paste(year, month, collapse="")
+}
+
 journals_df
 ```
 
@@ -291,10 +326,10 @@ history_df
 
 ```{r}
 articleID = history_data[1]
-articleID %>% dplyr::rename(article_id = name)
+articleID %>% dplyr::rename(newarticleID = name)
 
 # format article-history data frame
-article_history_df <- data.frame(historyid = history_df[1], articleidentifier = newarticleID)
+article_history_df <- data.frame(historyid = history_df[1], articleidentifier = articleID)
 article_history_df <- article_history_df %>% dplyr::rename(ArticleID = name)
 
 # create article-history data frame
@@ -851,6 +886,10 @@ ArticleIndex <- tibble::rowid_to_column(journals_df, "ArticleID")
 articles_df <- data.frame(ArticleID = ArticleIndex[1], JournalID = ArticleIndex[2], PubModel = ArticlePubModel, Title = ArticleTitle, Pagination = ArticlePagination, Date = ArticleDate, Language = ArticleLang)
 
 articles_df$Date <- ymd(articles_df$Date)
+# convert the DATE type to character to prevent DB table converting it to integer
+articles_df <- articles_df %>%
+  mutate(Date = as.character(Date)) %>%
+  mutate(Date = gsub("-", "", Date))
 
 # return articles data frame
 articles_df
@@ -884,3 +923,150 @@ res <- dbSendQuery(con, "SELECT * FROM articles LIMIT 5;")
 
 dbFetch(res)
 ```
+# Part 2. Create Star/Snowflake Schema
+## 1. Logical Model for Part 2.1
+![Logical Model](Practicum III - Star Schema - OG - Finalized .jpg)
+
+## 2. Create and Populate Star Schema
+### 2.1 Create and Load Dimension Tables
+#### 2.1.1 Article Dimension
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS ArticleDim;
+```
+```{sql, connection=con}
+CREATE TABLE ArticleDim
+  AS SELECT article_id AS articledim_key, pub_model, title FROM articles;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "ArticleDim"
+LIMIT 5;
+```
+#### 2.1.2 Journal Dimension
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS JournalDim;
+```
+```{sql, connection = con}
+CREATE TABLE JournalDim
+  AS SELECT journal_id AS journaldim_key, title, issn FROM journals;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "JournalDim"
+LIMIT 5;
+```
+#### 2.1.3 Journal Date Dimension
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS JournalDateDim;
+```
+```{sql, connection = con}
+-- this table is a little more complicated, first step is to create it and second step is to fill it
+CREATE TABLE JournalDateDim (
+  journaldatedim_key INTEGER PRIMARY KEY AUTOINCREMENT,
+  when_published DATE,
+  year_num INT,
+  quarter_of_year INT, 
+  season VARCHCAR(50)
+);
+```
+```{sql, connection = con}
+INSERT INTO JournalDateDim (when_published, year_num, quarter_of_year, season)
+  SELECT DISTINCT pub_date, SUBSTR(pub_date, 1,4) AS year_num,
+  CASE
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Jan", "Feb", "Mar") THEN 1
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Apr", "May", "Jun") THEN 2
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Jul", "Aug", "Sep") THEN 3
+    ELSE 4
+  END,
+  CASE 
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Dec", "Jan", "Feb") THEN "Winter"
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Mar", "Apr", "May") THEN "Spring"
+    WHEN SUBSTR(pub_date, 6, 8) IN ("Jun", "Jul", "Aug") THEN "Summer"
+    ELSE "Fall"
+  END
+  FROM journals;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "JournalDateDim"
+LIMIT 5;
+```
+#### 2.1.4 Article Date Dimension
+
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS ArticleDateDim;
+```
+```{sql, connection = con}
+-- this table is a little more complicated, first step is to create it and second step is to fill it
+CREATE TABLE ArticleDateDim (
+  articledatedim_key INTEGER PRIMARY KEY AUTOINCREMENT,
+  when_published DATE,
+  year_num INT,
+  quarter_of_year INT, 
+  season VARCHCAR(50)
+);
+```
+```{sql, connection = con}
+INSERT INTO ArticleDateDim (when_published, year_num, quarter_of_year, season)
+  SELECT DISTINCT pub_date, SUBSTR(pub_date, 1,4) AS year_num,
+  CASE
+    WHEN SUBSTR(pub_date, 5, 6)/100 < 4 THEN 1
+    WHEN SUBSTR(pub_date, 5, 6)/100 < 7 THEN 2
+    WHEN SUBSTR(pub_date, 5, 6)/100 < 10 THEN 3
+    WHEN SUBSTR(pub_date, 5, 6)/100 < 13 THEN 4
+    ELSE NULL
+  END,
+  CASE 
+    WHEN SUBSTR(pub_date, 5, 6)/100 IN (12, 1, 2) THEN "Winter"
+    WHEN SUBSTR(pub_date, 5, 6)/100 IN (3, 4, 5) THEN "Spring"
+    WHEN SUBSTR(pub_date, 5, 6)/100 IN (6, 7, 8) THEN "Summer"
+    WHEN SUBSTR(pub_date, 5, 6)/100 IN (9,10,11) THEN "Fall"
+    ELSE NULL
+  END
+  FROM articles;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "ArticleDateDim"
+LIMIT 5;
+```
+### 2.2 Create and Load Fact Table
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS PubMedFact;
+```
+```{sql, connection=con}
+-- create the fact table
+CREATE TABLE PubMedFact(
+  articledim_key INT,
+  journaldim_key INT,
+  articledatedim_key INT,
+  journaldatedim_key INT,
+  PRIMARY KEY (articledim_key, journaldim_key, articledatedim_key, journaldatedim_key)
+);
+```
+```{sql, connection = con}
+INSERT INTO PubMedFact
+ SELECT a.article_id AS articledim_key, a.journal_id AS journaldim_key, ArticleDateDim.articledatedim_key, JournalDateDim.journaldatedim_key
+  FROM articles a
+  LEFT JOIN ArticleDateDim ON ArticleDateDim.when_published = a.pub_date
+  LEFT JOIN journals ON journals.journal_id = a.journal_id
+  LEFT JOIN JournalDateDim ON JournalDateDim.when_published = journals.pub_date;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "PubMedFact"
+LIMIT 5;
+```
+## 3. Logical Model for Part 2.2
+![Logical Model](Practicum III - Star Schema - P2.2 - Finalized .jpg)
+## 4. Create and populate a summary fact table that represents number of articles per time period (quarter, year) by author and by journal
