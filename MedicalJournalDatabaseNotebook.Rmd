@@ -762,16 +762,18 @@ articlel= xpathSApply(xmlRoot,'//Article/Language', xmlValue)
 
 ```{r}
 grabbing_index <- tibble::rowid_to_column(final_Journal_df, "articleID")
-#grabbing_index
+grabbing_index[1]
 #articlel
 #unlist(grabbing_index[1])
 ```
 
 
 ```{r}
-article_df_final <- data.frame(articleid=grabbing_index[1],journalid=grabbing_index[2],pubModel=articlepubModel,articleTitle=articletitle,pagination=articlep,date=articled,language=articlel)
+article_df_final <- data.frame(articleid=grabbing_index[1],journalid=article_journal_initial_df[1],pubModel=articlepubModel,articleTitle=articletitle,pagination=articlep,date=articled,language=articlel)
 article_df_final
 ```
+
+
 ## Article DF
 ```{r}
 article_df_final$date=ymd(article_df_final$date)
