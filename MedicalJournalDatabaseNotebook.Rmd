@@ -26,7 +26,11 @@ library(lubridate)
 con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
 ```
 
-## 2. XML Parsing and Loading data into the database
+## 1. Logical Model
+
+![Logical Model](Practicum III - Relational Schema - Relational - FINALIZED.png)
+
+## 2. Parsing XML and Loading data into the database
 
 ### 2.1 Authors: Parsing and Importing data
 #### 2.1.2 Creating the Articles dataframe
@@ -706,11 +710,18 @@ grants_df_temp <- tibble::enframe(grants) %>%  separate(value, paste0('g', seq(1
 # format grants data frame
 grants_df_temp <- tibble::rowid_to_column(grants_df_temp, "ArticleID")
 
-# assign columns to data frame
 grants_df_temp <- data.frame(ArticleID = grants_df_temp[2], GrantID = grants_df_temp[4], Acronym = grants_df_temp[5], Agency = grants_df_temp[6], Country = grants_df_temp[7])
 
-# remove duplicate records
-grants_df <- grants_df_temp %>% distinct(GrantID, Agency, Acronym)
+grants_df_temp <- grants_df_temp %>% dplyr::rename(ArticleID = name)
+
+# format columns on grants data frame
+grants_df_formatted <- grants_df_temp %>% distinct(ArticleID, GrantID, Agency, Acronym, Country)
+
+# assign unique id to grants
+grants_df_new_col <- tibble::rowid_to_column(grants_df_formatted, "UniqueGrantID")
+
+# create grants data frame
+grants_df <- data.frame(UniqueGrandID = grants_df_new_col[1], ID = grants_df_formatted[2], Acronym = grants_df_formatted[3], Agency = grants_df_formatted[4], Country = grants_df_formatted[5])
 
 # return grants data frame
 grants_df
@@ -718,13 +729,8 @@ grants_df
 
 #### 2.7.2 Creating the Article-Grant dataframe
 ```{r}
-article_grant_df <- data.frame(ArticleID = grants_df_temp[1], GrantID = grants_df_temp[2])
-
-# delete duplicate records
-article_grant_df <- article_grant_df_temp %>% distinct(name, GrantID)
-
-# rename ArticleID column
-article_grant_df <- article_grant_df %>% dplyr::rename(ArticleID = name)
+# new article grant data frame
+article_grant_df <- data.frame(GrantID = grants_df[1], ArticleID = grants_df_formatted[1])
 
 # return article grant data frame 
 article_grant_df
@@ -742,14 +748,14 @@ res <- dbExecute(con, "
   (
     grant_id INTEGER PRIMARY KEY AUTOINCREMENT,
     id TEXT,
-    acronym TEXT NOT NULL,
-    agency TEXT NOT NULL,
-    country TEXT NOT NULL
+    acronym TEXT,
+    agency TEXT,
+    country TEXT
   );
 ")
 
 # load history table
-res <- dbSendQuery(con, "INSERT INTO grants (grant_id, id, acronym, agency, country) VALUES (:UniqueGrantID, :GrantId, :Acronym, :Agency, :Country);", grants_df)
+res <- dbSendQuery(con, "INSERT INTO grants (grant_id, id, acronym, agency, country) VALUES (:UniqueGrantID, :GrantID, :Acronym, :Agency, :Country);", grants_df)
 res <- dbSendQuery(con, "SELECT * FROM grants LIMIT 5;")
 
 dbFetch(res)
@@ -774,8 +780,9 @@ res <- dbExecute(con, "
 ")
 
 # load data into article_grant table
-res <- dbSendQuery(con, "INSERT INTO article_grant (grant_id, article_id) VALUES (:UniqueGrantID, :ArticleID);", article_pub_type_df)
+res <- dbSendQuery(con, "INSERT INTO article_grant (grant_id, article_id) VALUES (:UniqueGrantID, :ArticleID);", article_grant_df)
 res <- dbSendQuery(con, "SELECT * FROM article_grant LIMIT 5;")
+
 dbFetch(res)
 ```
 
