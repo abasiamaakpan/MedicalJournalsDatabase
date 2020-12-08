@@ -10,6 +10,9 @@ install.packages("RSQLServer")
 install.packages("dplyr")
 install.packages("tidyr")
 install.packages('lubridate')
+```
+
+```{r}
 library(dplyr)
 library(tidyr)
 library(DBI)
@@ -18,541 +21,866 @@ library(rlang)
 library(lubridate)
 ```
 
-
-```{r}
-xml_file <- "pubmed_sample.xml"
-
-# Reading the XML file and parse into DOM
-xmlDOM <- xmlParse(file = xml_file)
-xmlRoot <- xmlRoot(xmlDOM)
-```
-
-### Creating the authors dataframe-in progress
-```{r}
-# For each author 
-get_authors = function(xmlNode) {
-  #print(xmlNode)
-    g<-newXMLDoc(xmlNode)
-    xmlNodecopy <- duplicate(xmlNode)
-    f<<-xmlNodecopy
-    vec=xpathSApply(g,'//Author/*',xmlValue)
-  return (paste(vec, collapse='|'))
-}
-```
-
-
-
-```{r}
-author_list = xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
-author_list 
-```
-
-
-```{r}
-
-author_list_df=tibble::enframe(author_list)%>% 
-#separate(value,paste0('p',seq(30)),sep='\\|') %>%
-pivot_longer(!name,names_to='index',values_to='data') %>% 
-separate(col=data, into =   c('LastName','FirstName','Initials','affiliation','LastName1','FirstName1','Initials1','LastName2','FirstName2','Initials2','LastName3','FirstName3','Initials3','LastName4','FirstName4','Initials4','LastName5','FirstName5','Initials5','LastName6','FirstName6','Initials6','LastName7','FirstName7','Initials7','LastName8','FirstName8','Initials8','LastName9','FirstName9','Initials9','LastName10','FirstName10','Initial10','FirstName11','Initials11','LastName11','FirstName12','Initial12' ),sep='\\|')
-author_list_df
-
-```
-
-
-
-```{r}
-author_list_df[6]
-```
-
-
-```{r}
-new_author_list_df <- subset(author_list_df, select = -c(affiliation,index))
-new_author_list_df
-```
-```{r}
-author_list_df_test <- melt(as.data.table(new_author_list_df), id=c("name"))
-
-author_list_df_test
-```
-```{r}
-for (i in seq_along(author_list_df_test)) {
-    author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName1"] <- "FirstName"
-        author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName2"] <- "FirstName"
-            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName3"] <- "FirstName"
-                author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName4"] <- "FirstName"
-                    author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName5"] <- "FirstName"
-                        author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName6"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName7"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName8"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName9"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName10"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName10"] <- "FirstName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName11"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "FirstName12"] <- "FirstName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName1"] <- "LastName"
-                            author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName2"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName3"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName4"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName5"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName6"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName7"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName8"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName9"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName10"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName11"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "LastName12"] <- "LastName"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial1"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial2"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial3"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial4"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initials5"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial6"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial7"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial8"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial9"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial10"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial11"] <- "Initials"
-                              author_list_df_test[[i]][author_list_df_test[[i]] %in% "Initial12"] <- "Initials"
-}
-author_list_df_test
-```
-
-```{r}
-drop_na(author_list_df_test)
-```
-```{r}
-author_list_df_test_prelim_inp <- tibble::rowid_to_column(author_list_df_test, "authorID")
-author_list_df_test_prelim_inp
-
-```
-```{r}
-library(tidyr)
-author_list_df_test_prelim_inp.wide <- pivot_wider(author_list_df_test_prelim_inp, names_from = variable, values_from = value) 
-author_list_df_test_prelim_inp.wide
-
-```
-
-```{r}
-new_author_list_df.long <- pivot_longer(author_list_df, cols=3:38, names_to = "Name_combo", values_to = "Answer_combo")
-new_author_list_df
-```
-
-### Creating the journal dataframe-in progress
-```{r}
-journalISSN=xpathSApply(xmlRoot,'//Article/Journal/ISSN', xmlValue)
-#journalISSN
-jISSN=tibble::enframe(journalISSN)
-
-#length(v2)
-```
-
-```{r}
-#volume, issue, pubdate
-##pubdate could have medline date or could just have year and month 
-
-journalIssue=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue', xmlValue)
-#journalIssue
-JIssue=tibble::enframe(journalIssue)
-
-```
-
-
-```{r}
-journalIssueVolume=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Volume', xmlValue)
-#journalIssueVolume
-JIssueV=tibble::enframe(journalIssueVolume)
-```
-
-```{r}
-journalIssueNumber=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', xmlValue)
-#journalIssueNumber
-JIssueN=tibble::enframe(journalIssueNumber)
-```
- 
-```{r}
-journalIssuePubDate=xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
-#journalIssuePubDate
-jIPubDate=tibble::enframe(journalIssuePubDate)
-
-```
-
-```{r}
-JTitle=xpathSApply(xmlRoot,'//Article//Title', xmlValue)
-#journalIssuePubDate
-jTitleNew=tibble::enframe(JTitle)
-jTitleNew
-```
-
-```{r}
-ISOAbbrev=xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
-#journalIssuePubDate
-jISOAbbrev=tibble::enframe(ISOAbbrev)
-jISOAbbrev
-```
-```{r}
-Journal_df=data.frame(Journal_ISSN=jISSN[2],Journal_Issue_Volume=JIssueV[2],Journal_Issue_Number=JIssueN[2],Journal_Issue_PubDate=jIPubDate[2],title=jTitleNew[2],JIsoabbreviation=jISOAbbrev[2])
-Journal_df
-
-final_Journal_df=Journal_df %>% 
-  rename(
-    ISSN = value,
-    Volume = value.1,
-    Issue=value.2,
-    PubDate=value.3,
-    title=value.4,
-    ISOAbbrev=value.5
-    )
-
-```
-```{r}
-final_Journal_df
-```
-## Creating the article journal df
-```{r}
-article_journal_initial_df <- tibble::rowid_to_column(final_Journal_df, "journalID")
-article_journal_initial_df
-```
-
-## Creating the history dataframe
-```{r}
-# pads with zeroes
-padstring = function(x) {
-  x <-xmlValue(x)
-
-  if (nchar(x)==1){
-    return(paste0('0',x))
-  }
-  return (x)
-}
-```
-
-```{r}
-# Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
-get_pub_status_and_value = function(xmlNode) {
-  x<-newXMLDoc(xmlNode)
-  #xmlNodecopy <- duplicate(xmlNode)
-  #y<<-xmlNodecopy
-  vec = xpathSApply(x,'//PubMedPubDate/*', padstring)
-  datestring = paste(vec, collapse = '')
-  
-  return (paste(datestring, xmlGetAttr(xmlNode,'PubStatus'),sep='|'))
-}
-```
-
-```{r}
-## pointer is a pointer to a subtree. 
-history_columns = function(xmlNode) {
-  # made a brand new tree of the subtree
-  x <- newXMLDoc(xmlNode)
-  # for each pointer
-  ## getting all the pubmedubdate information of subtree
-  ## vec is a pipe delimited pubstatus
-  vec=xpathSApply(x,'//PubMedPubDate',get_pub_status_and_value)
-  ## collapse the vector into a single string separated by stars
-  return (paste(vec,collapse='*'))
-}
-```
-
-
-```{r}
-## find the pubmeddata of each article
-history = xpathSApply(xmlRoot,'//PubmedArticle//PubmedData/History', history_columns)
-history
-```
-
-```{r}
-#VEctor of p1,p2,p3,p4.....p10
-## tidyverse/tidyr
-## pivot longer-one piece of data per row. Takes each column per row
-history_prelim_df=tibble::enframe(history)%>%  separate(value,paste0('p',seq(10)),sep='\\*') %>% pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('Date','PubStatus'),sep='\\|')
-
-final_date_column = history_prelim_df %>% transmute(newDate = ymd(substr(Date, 1, 8)))
-
-new_history_prelim_df = data.frame(DateColumn = final_date_column, publishStatus = history_prelim_df[4])
-new_history_prelim_df
-```
-
-## Creating the article history dataframe
-```{r}
-articleID=history_prelim_df[1]
-articleID %>% 
-  rename(
-    article_id = name,
-    )
-newarticleID = articleID
-
-```
-
-```{r}
-final_history_prelim_df <- tibble::rowid_to_column(new_history_prelim_df, "historyID")
-final_history_prelim_df 
-```
-```{r}
-article_history_df=data.frame(articleidentifier = newarticleID, historyid = final_history_prelim_df[1])
-article_history_df %>% 
-  rename(
-    articleid = name
-    )
-article_history_df
-```
-
-
-### Creating the abstract dataframe-not started
-
-```{r}
-#trying to get all pub statuses for each pubmedarticle and pubmed data
-##Getting all the abstract
-aabstract=xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
-#aabstract
-```
-### Creating the elocation dataframe-in progress
-
-```{r}
-v3=xpathSApply(xmlRoot,'//ELocationID', xmlGetAttr, 'EIdType')
-length(v3)
-
-data <- xmlSApply(xmlRoot,function(x) xmlSApply(x, xmlValue))
-
-elocation_df <- data.frame(elocID=character(),Type=character(),content=character())
-for(row in data){
-elocation_df <- dplyr::bind_rows(elocation_df,row)
-}
-elocation_df$elocID=v3
-
-elocation_df
-```
-
-```{r}
-elocation=xpathSApply(xmlRoot,'//ELocationID', xmlValue)
-elocation
-```
-```{r}
-# Takes an xml node and it returns the value and pubstatus attribute of that node. Also pads the date string
-geloc=function(xmlNode){
-  #print(xmlNode)
-    x<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
-    vec=xpathSApply(x,'//ELocationID/*',xmlValue)
-    #datestring=paste(vec, collapse = '')
-  return (paste(vec, xmlGetAttr(xmlNode,'EIdType'),sep='|'))
-}
-```
-```{r}
-
-```
-
-```{r}
-## pointer is a pointer to a subtree. 
-eloc=function(xmlNode){
-    #made a brand new tree of the subtree
-    x<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    vec=xpathSApply(x,'//ELocationID',geloc)
-    ## collapse the vector into a single string separated by stars
-  return (paste(vec,collapse='*'))
-}
-```
-
-```{r}
-e_new=xpathSApply(xmlRoot,'/ELocationID', xmlValue)
-e_new
-```
-
-```{r}
-eloc_new=xpathSApply(xmlRoot,'/ElocationID', eloc)
-eloc_new
-```
-
-
-```{r}
-#elocation_df=tibble::enframe(elocation)%>%  #separate(value,paste0('p',seq(10)),sep='\\*') %>% #pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) #%>% separate(col=data, into = c('Type','content'),sep='\\|')
-```
-### Creating Publication Type Dataframe
-```{r}
-pubtype=xpathSApply(xmlRoot,'//PublicationTypeList', xmlValue)
-pubtype
-```
-
-
-```{r}
-get_pub_type=function(xmlNode){
-  #print(xmlNode)
-    gtb<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
-    PublicationTypeList=xpathSApply(gtb,'//PublicationTypeList/*',xmlValue)
-  return (paste(PublicationTypeList))
-}
-```
-
-```{r}
-pubtype_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    #print(xmlNode)
-
-    pb<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    pubvec=xpathSApply(pb,'//PublicationTypeList',get_pub_type)
-    ## collapse the vector into a single string separated by stars
-  return (paste(pubvec,collapse='*'))
-}
-```
-
-
-
-```{r}
-pubtype_new=xpathSApply(xmlRoot,'//PubmedArticle//PublicationTypeList', pubtype_columns)
-#pubtype_new
-```
-
-```{r}
-pubtype_new_df=tibble::enframe(pubtype_new)%>%
-  separate(value,paste0('p',seq(10)),sep='\\*') %>%
-  pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('type'),sep='\\*')
-pubtype_new_df
-
-#pubvec1=xpathSApply(xmlRoot,'//PublicationTypeList',xmlValue)
-
-```
-
-```{r}
-pubtype_new_df_prelim <- subset(pubtype_new_df, select = -c(index))
-pubtype_new_df_prelim
-```
-```{r}
-pubtype_new_df_prelim_inp=pubtype_new_df_prelim %>% 
-  rename(
-    articleID = name,
-    )
-```
-
-```{r}
-pubtype_new_df_prelim_inp
-```
-### Creating Article Pub Type Dataframe
-```{r}
-pubtype_new_df_prelim_inp <- tibble::rowid_to_column(pubtype_new_df_prelim_inp, "pubtypeID")
-pubtype_new_df_prelim_inp
-```
-
-```{r}
-article_pub_type_df <- subset(pubtype_new_df_prelim_inp, select = -c(type))
-article_pub_type_df
-```
-## Creating Grant Dataframe
-```{r}
-grant=xpathSApply(xmlRoot,'//Grant', xmlValue)
-grant
-```
-
-```{r}
-get_grant=function(xmlNode){
-  #print(xmlNode)
-    gg<-newXMLDoc(xmlNode)
-    #xmlNodecopy <- duplicate(xmlNode)
-    #y<<-xmlNodecopy
-    GrantList=xpathSApply(gg,'//Grant/*',xmlValue)
-  return (paste(GrantList))
-}
-```
-
-```{r}
-grant_columns=function(xmlNode){
-    #made a brand new tree of the subtree
-    #print(xmlNode)
-
-    gc<-newXMLDoc(xmlNode)
-    # for each pointer
-    ## getting all the pubmedubdate information of subtree
-   ## vec is a pipe delimited pubstatus
-    grantvec=xpathSApply(gc,'//Grant',get_grant)
-    ## collapse the vector into a single string separated by stars
-  return (paste(grantvec,collapse='*'))
-}
-```
-
-```{r}
-grant_new=xpathSApply(xmlRoot,'//PubmedArticle//GrantList/Grant', grant_columns)
-grant_new
-```
-
-```{r}
-grant_new_df=tibble::enframe(grant_new)%>%
-#separate(value,paste0('p',seq(19)),sep='\\*') %>%
-  pivot_longer(!name,names_to='index',values_to='data') %>% filter(!is.na(data)) %>% separate(col=data, into = c('grantid', 'acronym','agency','country'),sep='\\*')
-grant_new_df
-
-
-#pubvec1=xpathSApply(xmlRoot,'//PublicationTypeList',xmlValue)
-
-```
-## Creating the article table-not started
-
-
-```{r}
-articleDetails = xpathSApply(xmlRoot,'//PubmedArticle//Article', xmlValue)
-articleDetails
-tibble::enframe(articleDetails)
-
-```
-
-
-### Creating a database and tables
-
 ```{r}
 # create an ephemeral in-memory RSQLite database
 con <- dbConnect(RSQLite::SQLite(), ":publications_db:")
+```
 
-# CREATE TABLES
+## 1. Logical Model
+
+![Logical Model](Practicum III - Relational Schema - Relational - FINALIZED.png)
+
+## 2. Parsing XML and Loading data into the database
+
+### 2.1 Authors: Parsing and Importing data
+#### 2.1.2 Creating the Articles dataframe
+```{r}
+# define function to retrieve authors list
+single_author_list <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  xcopy <- newXMLDoc(xmlNodeCopy)
+  lastname <- xpathSApply(xcopy, '//LastName', xmlValue)
+  firstname <- xpathSApply(xcopy, '//ForeName', xmlValue)
+  initials <- xpathSApply(xcopy, '//Initials', xmlValue)
+  
+  return (paste(lastname, firstname, initials, sep='*'))
+}
+
+# parse attributes and elements on each authors node
+get_authors <- function(xmlNode) {
+  newxmlNodeCopy <- duplicate(xmlNode)
+  pb<-newXMLDoc(newxmlNodeCopy)
+  g <-newXMLDoc(xmlNode)
+  names=xpathSApply(g,'//Author',single_author_list)
+  names_single_string=paste(names,collapse='|')
+  affiliation=xpathSApply(pb,'//Affiliation', xmlValue)
+  return (paste(affiliation,names_single_string, sep='|'))
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get authors list from XML file
+author_list <- xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
+
+# add authors list to data frame
+author_list_df <- tibble::enframe(author_list) %>%  separate(value, c('Affiliation', paste0('x', seq(12))), sep='\\|') %>% pivot_longer(starts_with('x'), names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col <- data, into = c('LastName', 'FirstName', 'Initial'), sep='\\*')
+
+# format authors data frame
+author_list_df_formatted <- author_list_df %>% distinct(FirstName, LastName, Initial)
+
+authors_df_initial <- merge(author_list_df,  author_list_df_formatted, all.x=TRUE)
+
+# remove extra columns from data frame
+authors_df <- subset(authors_df_initial, select = -c(index,name))
+authors_df <- tibble::rowid_to_column(authors_df, "authorID")
+
+# print data frame
+authors_df
+```
+
+#### 2.1.2 Creating the Article-Authors dataframe
+```{r}
+# create article-author data frame
+authors_df_copy = authors_df_initial[4] %>% 
+  dplyr::rename(
+    articleID = name,
+    )
+article_authors_df <- tibble::rowid_to_column(authors_df_copy, "authorID")
+
+# print data frame
+article_authors_df
+```
+
+#### 2.1.3 Importing Authors and Article-Authors into the database
+```{r}
+# drop authors table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS authors;
+")
+
+# create authors table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS authors
+  (
+    author_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    last_name TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    initials TEXT NOT NULL,
+    affiliation TEXT NOT NULL
+  );
+")
+
+# load authors table
+res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials, affiliation) VALUES (:authorID, :LastName, :FirstName, :Initial, :Affiliation);", authors_df)
+res <- dbSendQuery(con, "SELECT * FROM authors LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# drop article_author table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_author;
+")
+
+# create article_author table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_author
+  (
+    author_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, author_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (author_id) REFERENCES authors (author_id)
+  );
+")
+
+# load article authors table
+res <- dbSendQuery(con, "INSERT INTO article_author (author_id, article_id) VALUES (:authorID, :articleID);", article_authors_df)
+res <- dbSendQuery(con, "SELECT * FROM article_author LIMIT 5;")
+dbFetch(res)
+```
+
+### 2.2 Journals: Parsing and Importing data
+#### 2.2.1 Creating the Journals dataframe
+
+### Creating the journal dataframe
+```{r}
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# export journal ISSN
+ISSN <- xpathSApply(xmlRoot, '//Article/Journal/ISSN', xmlValue)
+JournalISSN <- tibble::enframe(ISSN)
+
+# export journal issue
+journalIssue <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue', xmlValue)
+JIssue <- tibble::enframe(journalIssue)
+
+# export journal issue volume
+IssueVolume <- xpathSApply(xmlRoot, '//Article//Journal/JournalIssue/Volume', xmlValue)
+JournalIssueVolume <- tibble::enframe(IssueVolume)
+
+# export journal issue number
+JournalIssueNumber <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/Issue', xmlValue)
+JournalIssueNumber <- tibble::enframe(JournalIssueNumber)
+
+# export journal issue publication date
+IssuePubDate <- xpathSApply(xmlRoot,'//Article//Journal/JournalIssue/PubDate', xmlValue)
+JournalIssuePubDate <- tibble::enframe(IssuePubDate)
+
+# export journal issue title
+Title <- xpathSApply(xmlRoot,'//Article//Title', xmlValue)
+JournalTitle <- tibble::enframe(Title)
+
+# export journal ISO abbreviation
+ISOAbbrev <- xpathSApply(xmlRoot,'//Article//ISOAbbreviation', xmlValue)
+JournalISOAbbrev <- tibble::enframe(ISOAbbrev)
+
+# format data into data frame
+journals_df_temp <- data.frame(JournalISSN = JournalISSN[2], JournalIssueVolume = JournalIssueVolume[2], JournalIssueNumber = JournalIssueNumber[2], JournalIssuePubDate = JournalIssuePubDate[2], Title = JournalTitle[2], JournalISOAbbrev = JournalISOAbbrev[2])
+journals_df_temp
+
+journals_df_formatted <- journals_df_temp %>% 
+  dplyr::rename(
+    ISSN = value,
+    Volume = value.1,
+    Issue = value.2,
+    PubDate = value.3,
+    Title = value.4,
+    ISOAbbrev = value.5
+    )
+
+# create journals data frame
+journals_df <- tibble::rowid_to_column(journals_df_formatted, "JournalID")
+journals_df
+```
+
+#### 2.1.3 Importing Journals into the database
+
+```{r}
+# drop journals table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS journals;
+")
+
+# create journals table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS journals
+  (
+    journal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issn TEXT NOT NULL,
+    volume TEXT NOT NULL,
+    issue INTEGER NOT NULL,
+    pub_date DATE NOT NULL,
+    title TEXT NOT NULL,
+    iso_abbrev TEXT NOT NULL
+  );
+")
+
+# load data into journals table
+res <- dbSendQuery(con, "INSERT INTO journals (journal_id, issn, volume, issue, pub_date, title, iso_abbrev) VALUES (:JournalID, :ISSN, :Volume, :Issue, :PubDate, :Title, :ISOAbbrev);", journals_df)
+res <- dbSendQuery(con, "SELECT * FROM journals LIMIT 5;")
+dbFetch(res)
+```
+
+### 2.3 History: Parsing and Importing data
+#### 2.3.1 Creating the History dataframe
+
+```{r}
+# helper function to add spacing
+pad_string=function(x){
+  x <- xmlValue(x)
+
+  if (nchar(x) == 1) {
+    return (paste0('0', x))
+  }
+  
+  return (x)
+}
+
+# define function to retrieve the value and pubstatus attribute of each node
+get_pub_status_and_value <- function(xmlNode) {
+  x<-newXMLDoc(xmlNode)
+  
+  vec <- xpathSApply(x, '//PubMedPubDate/*', pad_string)
+  datestring=paste(vec, collapse = '')
+  
+  return (paste(datestring, xmlGetAttr(xmlNode, 'PubStatus'), sep='|'))
+}
+
+# format each node of the subtree
+history_columns <- function(xmlNode) {
+  # create new tree of the sub-tree
+  x <- newXMLDoc(xmlNode)
+    
+  # add delimiter to publication status
+  vec=xpathSApply(x, '//PubMedPubDate', get_pub_status_and_value)
+    
+  # collapse the vector into a single string separated by asterisks
+  return (paste(vec, collapse = '*'))
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get history from XML file
+history <- xpathSApply(xmlRoot, '//PubmedArticle//PubmedData/History', history_columns)
+
+# create temporary history data frame
+history_data <- tibble::enframe(history) %>%  separate(value, paste0('p', seq(10)), sep = '\\*') %>% pivot_longer(!name,names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Date', 'PubStatus'), sep = '\\|')
+
+# format date column
+date_formatted <- history_data %>% transmute(PubDate = ymd(substr(Date, 1, 8)))
+
+# update temporary dataframe
+history_df_temp <- data.frame(publishStatus <- history_data[4], DateColumn <- date_formatted)
+
+# create history data frame
+history_df <- tibble::rowid_to_column(history_df_temp, "HistoryID")
+history_df 
+```
+
+#### 2.3.2 Creating the Article-History dataframe
+
+```{r}
+articleID = history_data[1]
+articleID %>% dplyr::rename(article_id = name)
+
+# format article-history data frame
+article_history_df <- data.frame(historyid = history_df[1], articleidentifier = newarticleID)
+article_history_df <- article_history_df %>% dplyr::rename(ArticleID = name)
+
+# create article-history data frame
+article_history_df
+```
+
+#### 2.3.3 Importing History and Article-History into the database
+```{r}
+# drop history table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS history;
+")
+
 # create history table
 res <- dbExecute(con, "
   CREATE TABLE IF NOT EXISTS history
   (
     history_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pub_date DATE NOT NULL,
-    pub_status TEXT NOT NULL
+    pub_status TEXT NOT NULL,
+    pub_date DATE NOT NULL
   );
 ")
 
-# create article history table
+# load history table
+res <- dbSendQuery(con, "INSERT INTO history (history_id, pub_status, pub_date) VALUES (:HistoryID, :PubStatus, :PubDate);", history_df)
+res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# drop article_history table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_history;
+")
+
+# create article_history table
 res <- dbExecute(con, "
   CREATE TABLE IF NOT EXISTS article_history
   (
-    article_id INTEGER,
     history_id INTEGER,
+    article_id INTEGER,
     PRIMARY KEY(article_id, history_id),
     FOREIGN KEY (article_id) REFERENCES articles (article_id),
     FOREIGN KEY (history_id) REFERENCES history (history_id)
   );
 ")
 
-# create publication types table
-res <- dbExecute(con, "
-  CREATE TABLE IF NOT EXISTS pub_types
-  (
-    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pub_type TEXT NOT NULL
-  );
-")
+# load data into article history table
+res <- dbSendQuery(con, "INSERT INTO article_history (history_id, article_id) VALUES (:HistoryID, :ArticleID);", article_history_df)
+res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
+dbFetch(res)
 ```
 
-## Loading data into the database
-Since I have already created the tables, I will load the `Book` data frame by using placeholders in the query definition and matching each value to columns in the data frame. I will repeat this step for each table.
+### 2.4 Abstracts: Parsing and Importing data
+#### 2.4.1 Creating the Abstracts dataframe
+
 ```{r}
-# load history
-res <- dbSendQuery(con, "INSERT INTO history (pub_date, pub_status) VALUES (:newDate, :PubStatus);", new_history_prelim_df)
-res <- dbSendQuery(con, "SELECT * FROM history LIMIT 5;")
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get all abstract nodes
+# LOOKS LIKE THIS DOESN'T DO ANYTHING
+abstract <- xpathSApply(xmlRoot,'//PubmedArticle//Article/Abstract', xmlValue)
+
+# define function to parse each abstract node 
+abstract_parse <- function(xmlNode) {
+  # make copy of node
+  xmlNodeCopy <- duplicate(xmlNode)
+  # create new XML
+  x <- newXMLDoc(xmlNodeCopy)
+  
+  xmlNodeCopy_1 <- duplicate(xmlNode)
+  y <- newXMLDoc(xmlNodeCopy_1)
+  xmlNodeCopy_2 <- duplicate(xmlNode)
+  
+  z <- newXMLDoc(xmlNodeCopy_2)
+  
+  # extract XML attributes and value
+  Label <- xpathSApply(x, '//AbstractText', xmlGetAttr, 'Label')
+  NMLCategory <- xpathSApply(y, '//AbstractText', xmlGetAttr, 'NlmCategory')
+  Text <- xpathSApply(z, '//AbstractText', xmlValue)
+
+  return (paste(Label, NMLCategory, Text, collapse='|',sep='*'))
+}
+
+# get article nodes
+abstracts <- xpathSApply(xmlRoot, '//Article', abstract_parse)
+
+abstracts_df_temp <- tibble::enframe(abstracts) %>% separate(value, paste0('a', seq(10)), sep = '\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Label','NMLCategory','Content'), sep='\\*')
+
+# rename column
+abstracts_df_temp <- abstracts_df_temp %>% dplyr::rename(ArticleID = name)
+
+# exclude index column 
+abstracts_df_formatted <- subset(abstracts_df_temp, select = -c(index))
+abstracts_df_formatted <- tibble::rowid_to_column(abstracts_df_formatted, "AbstractID")
+
+# exclude ArticleID column 
+abstracts_df <- subset(abstracts_df_formatted, select = -c(ArticleID))
+
+# create abstracts data frame
+abstracts_df
+```
+
+#### 2.4.2 Creating the Article-Abstracts dataframe
+```{r}
+# create article-abstract data frame
+article_abstract_df <- subset(abstracts_df_formatted, select = -c(Label, NMLCategory, Content))
+article_abstract_df
+```
+
+#### 2.4.3 Importing Abstracts and Article-Abstract into the database
+```{r}
+# drop abstracts table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS abstracts;
+")
+
+# create abstracts table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS abstracts
+  (
+    abstract_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    nml_category TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO abstracts (abstract_id, label, nml_category, content) VALUES (:AbstractID, :Label, :NMLCategory, :Content);", abstracts_df)
+res <- dbSendQuery(con, "SELECT * FROM abstracts LIMIT 5;")
 dbFetch(res)
 ```
 
 ```{r}
-# load article history
-res <- dbSendQuery(con, "INSERT INTO article_history (article_id, history_id) VALUES (:name, :historyID);", article_history_df)
-res <- dbSendQuery(con, "SELECT * FROM article_history LIMIT 5;")
+# drop article_abstract table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_abstract;
+")
+
+# create article_history table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_abstract
+  (
+    abstract_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, abstract_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (abstract_id) REFERENCES abstracts (abstract_id)
+  );
+")
+
+# load data into article abstract table
+res <- dbSendQuery(con, "INSERT INTO article_abstract (abstract_id, article_id) VALUES (:AbstractID, :ArticleID);", article_abstract_df)
+res <- dbSendQuery(con, "SELECT * FROM article_abstract LIMIT 5;")
+dbFetch(res)
+```
+
+### 2.5 Elocations: Parsing and Importing data
+#### 2.5.1 Creating the Elocations dataframe
+```{r}
+# LOOKS LIKE THIS DOESN'T DO ANYTHING
+elocation <- xpathSApply(xmlRoot, '//ELocationID', xmlValue)
+
+# define helper function to parse each elocation node
+elocation_parser <- function(xmlNode) {
+  # copy node
+  xmlNodeCopy <- duplicate(xmlNode)
+  # create new XML document from copied node
+  x <- newXMLDoc(xmlNodeCopy)
+  
+  # copy node
+  xmlNodeCopy_1 <- duplicate(xmlNode)
+  # create new XML document from copied node
+  y <- newXMLDoc(xmlNodeCopy_1)
+  
+  # get attributes and value of elocation
+  EIdType <- xpathSApply(x, '//ELocationID', xmlGetAttr, 'EIdType')
+  ELocationID <- xpathSApply(y, '//ELocationID', xmlValue)
+
+  return (paste(EIdType, ELocationID, collapse = '|', sep = '*'))
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get article nodes
+elocations <- xpathSApply(xmlRoot, '//Article', elocation_parser)
+
+elocations_df_temp <- tibble::enframe(elocations) %>% separate(value, paste0('e', seq(10)), sep='\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Type', 'Content'), sep = '\\*')
+
+# add elocation id column
+elocations_df_temp <- tibble::rowid_to_column(elocations_df_temp, "ElocID")
+
+# exclude name and index column
+elocations_df <- subset(elocations_df_temp, select = -c(name, index))
+
+# return elocations data frame
+elocations_df
+```
+
+#### 2.5.2 Creating the Article-Elocations dataframe
+```{r}
+# print elocation data frame
+article_elocations_df_temp <- elocations_df_temp %>% dplyr::rename(ArticleID = name)
+article_elocations_df <- subset(article_elocations_df_temp, select = -c(index, Type, Content))
+
+# return article elocations data frame
+article_elocations_df
+```
+
+#### 2.6.3 Importing Elocations and Article-Elocation into the database
+```{r}
+# drop elocations table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS elocations;
+")
+
+# create pub_types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS elocations
+  (
+    elocation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO elocations (elocation_id, type, content) VALUES (:ElocID, :Type, :Content);", elocations_df)
+res <- dbSendQuery(con, "SELECT * FROM elocations LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# drop article_elocation table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_elocation;
+")
+
+# create article_elocations table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_elocations
+  (
+    elocation_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, elocation_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (elocation_id) REFERENCES elocations (elocation_id)
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO article_elocations (elocation_id, article_id) VALUES (:ElocID, :ArticleID);", article_elocations_df)
+res <- dbSendQuery(con, "SELECT * FROM article_elocations LIMIT 5;")
+dbFetch(res)
+```
+
+### 2.6 Publication Types: Parsing and Importing data
+#### 2.6.1 Creating the Publication Types dataframe
+```{r}
+# define function to retrieve publication type node
+get_pub_type <- function(xmlNode) {
+  gtb <- newXMLDoc(xmlNode)
+  
+  PublicationTypeList <- xpathSApply(gtb, '//PublicationTypeList/*', xmlValue)
+  
+  return (paste(PublicationTypeList))
+}
+
+# define function to retrieve publication type node
+pub_type_columns <- function(xmlNode) {
+  publication <- newXMLDoc(xmlNode)
+  publication_vec <- xpathSApply(publication, '//PublicationTypeList', get_pub_type)
+
+  return (paste(publication_vec, collapse = '*'))
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get publication types list
+publication_type <- xpathSApply(xmlRoot, '//PubmedArticle//PublicationTypeList', pub_type_columns)
+
+pub_types_df_temp <- tibble::enframe(publication_type) %>% separate(value, paste0('p', seq(10)), sep = '\\*') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('Type'), sep = '\\*')
+
+# format data frame
+pub_types_df_temp <- subset(pub_types_df_temp, select = -c(index))
+pub_types_df_temp <- pub_types_df_temp %>% dplyr::rename(ArticleID = name)
+
+# only show unique type values
+pub_types_df <- pub_types_df_temp %>% distinct(Type)
+
+# add publication type id column
+pub_types_df <- tibble::rowid_to_column(pub_types_df, "PubTypeID")
+
+# return publication type data frame
+pub_types_df
+```
+
+#### 2.6.2 Creating the Article-Publication Types dataframe
+```{r}
+# create article publication type data frame
+article_pub_type_df <- merge(pub_types_df, pub_types_df_temp, all.x = TRUE)
+article_pub_type_df <- subset(article_pub_type_df, select = -c(Type))
+
+# return article publication type data frame
+article_pub_type_df
+```
+
+#### 2.6.3 Importing Publication Types and Article-Publication Types into the database
+```{r}
+# drop pub_types table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS pub_types;
+")
+
+# create pub_types table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS pub_types
+  (
+    pub_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pub_name TEXT NOT NULL
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO pub_types (pub_type_id, pub_name) VALUES (:PubTypeID, :Type);", pub_types_df)
+res <- dbSendQuery(con, "SELECT * FROM pub_types LIMIT 5;")
+dbFetch(res)
+```
+
+```{r}
+# drop article_pub_type table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_pub_type;
+")
+
+# create article_pub_type table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_pub_type
+  (
+    pub_type_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, pub_type_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (pub_type_id) REFERENCES pub_types (pub_type_id)
+  );
+")
+
+# load data into article_pub_type table
+res <- dbSendQuery(con, "INSERT INTO article_pub_type (pub_type_id, article_id) VALUES (:PubTypeID, :ArticleID);", article_pub_type_df)
+res <- dbSendQuery(con, "SELECT * FROM article_pub_type LIMIT 5;")
+dbFetch(res)
+```
+
+### 2.7 Grants: Parsing and Importing data
+#### 2.7.1 Creating the Grants dataframe
+
+```{r}
+# define function parse each grant node
+get_grant <- function(xmlNode) {
+  # make copy of grant node
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  
+  GrantId <- xpathSApply(grant, '//GrantID', xmlValue)
+  Acronym <- xpathSApply(grant, '//Acronym', xmlValue)
+  Agency <- xpathSApply(grant, '//Agency', xmlValue)
+  Country <- xpathSApply(grant, '//Country', xmlValue)
+
+  return (paste(GrantId, Acronym, Agency, Country, sep = '*'))
+}
+
+# get columns of grants
+get_grant_columns <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  
+  grant_vec <- xpathSApply(grant, '//Grant', get_grant)
+  
+  # collapse the vector into a single string separated by pipe characters
+  return (paste(grant_vec, collapse = '|'))
+}
+
+# get list of grants
+get_grants_list <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  grant <- newXMLDoc(xmlNodeCopy)
+  grant_check <- xpathSApply(grant, '//GrantList', get_grant_columns)
+
+  if(length(grant_check) == 0) {
+    return ('')
+  }
+  
+  return (grant_check)
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+# get grants list from articles
+grants = xpathSApply(xmlRoot, '//Article', get_grants_list)
+
+# set up grants data frame
+grants_df_temp <- tibble::enframe(grants) %>%  separate(value, paste0('g', seq(10)), sep = '\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('GrantID', 'Acronym', 'Agency', 'Country'), sep = '\\*')
+
+# format grants data frame
+grants_df_temp <- tibble::rowid_to_column(grants_df_temp, "ArticleID")
+
+grants_df_temp <- data.frame(ArticleID = grants_df_temp[2], GrantID = grants_df_temp[4], Acronym = grants_df_temp[5], Agency = grants_df_temp[6], Country = grants_df_temp[7])
+
+grants_df_temp <- grants_df_temp %>% dplyr::rename(ArticleID = name)
+
+# format columns on grants data frame
+grants_df_formatted <- grants_df_temp %>% distinct(ArticleID, GrantID, Agency, Acronym, Country)
+
+# assign unique id to grants
+grants_df_new_col <- tibble::rowid_to_column(grants_df_formatted, "UniqueGrantID")
+
+# create grants data frame
+grants_df <- data.frame(UniqueGrandID = grants_df_new_col[1], ID = grants_df_formatted[2], Acronym = grants_df_formatted[3], Agency = grants_df_formatted[4], Country = grants_df_formatted[5])
+
+# return grants data frame
+grants_df
+```
+
+#### 2.7.2 Creating the Article-Grant dataframe
+```{r}
+# new article grant data frame
+article_grant_df <- data.frame(GrantID = grants_df[1], ArticleID = grants_df_formatted[1])
+
+# return article grant data frame 
+article_grant_df
+```
+#### 2.7.3 Importing Grants and Article-Grants into the database
+```{r}
+# drop grants table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS grants;
+")
+
+# create grants table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS grants
+  (
+    grant_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT,
+    acronym TEXT,
+    agency TEXT,
+    country TEXT
+  );
+")
+
+# load history table
+res <- dbSendQuery(con, "INSERT INTO grants (grant_id, id, acronym, agency, country) VALUES (:UniqueGrantID, :GrantID, :Acronym, :Agency, :Country);", grants_df)
+res <- dbSendQuery(con, "SELECT * FROM grants LIMIT 5;")
+
+dbFetch(res)
+```
+
+```{r}
+# drop article_grant table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS article_grant;
+")
+
+# create article_grant table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS article_grant
+  (
+    grant_id TEXT,
+    article_id INTEGER,
+    PRIMARY KEY(article_id, grant_id),
+    FOREIGN KEY (article_id) REFERENCES articles (article_id),
+    FOREIGN KEY (grant_id) REFERENCES grants (grant_id)
+  );
+")
+
+# load data into article_grant table
+res <- dbSendQuery(con, "INSERT INTO article_grant (grant_id, article_id) VALUES (:UniqueGrantID, :ArticleID);", article_grant_df)
+res <- dbSendQuery(con, "SELECT * FROM article_grant LIMIT 5;")
+
+dbFetch(res)
+```
+
+### 2.8 Articles: Parsing and Importing data
+#### 2.8.1 Creating the Articles dataframe
+
+## Creating the article dataframe
+
+```{r}
+# define helper function to get article date
+get_date <- function(xmlNode) {
+  xmlNodeCopy <- duplicate(xmlNode)
+  node <- newXMLDoc(xmlNodeCopy)
+  get_date_check <- xpathSApply(node, '//ArticleDate', xmlValue)
+
+  if (length(get_date_check) == 0) {
+    return ('')
+  }
+  
+  return (get_date_check)
+}
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+ArticlePubModel <- xpathSApply(xmlRoot, '//Article', xmlGetAttr, 'PubModel')
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+ArticleTitle <- xpathSApply(xmlRoot, '//Article/ArticleTitle', xmlValue)
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+ArticlePagination <- xpathSApply(xmlRoot, '//Article/Pagination', xmlValue)
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+
+ArticleDate <- xpathSApply(xmlRoot, '//Article', get_date)
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+ArticleLang <- xpathSApply(xmlRoot, '//Article/Language', xmlValue)
+
+# read XML file and parse into DOM
+xml_file <- "pubmed_sample.xml"
+xmlDOM <- xmlParse(file = xml_file)
+xmlRoot <- xmlRoot(xmlDOM)
+ArticleIndex <- tibble::rowid_to_column(journals_df, "ArticleID")
+
+articles_df <- data.frame(ArticleID = ArticleIndex[1], JournalID = ArticleIndex[2], PubModel = ArticlePubModel, Title = ArticleTitle, Pagination = ArticlePagination, Date = ArticleDate, Language = ArticleLang)
+
+articles_df$Date <- ymd(articles_df$Date)
+
+# return articles data frame
+articles_df
+```
+
+#### 2.8.2 Importing Articles into the database
+```{r}
+# drop articles table if exists
+res <- dbExecute(con, "
+  DROP TABLE IF EXISTS articles;
+")
+
+# create articles table
+res <- dbExecute(con, "
+  CREATE TABLE IF NOT EXISTS articles
+  (
+    article_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journal_id TEXT,
+    pub_model TEXT NOT NULL,
+    title TEXT NOT NULL,
+    pagination TEXT,
+    pub_date DATE,
+    lang TEXT NOT NULL,
+    FOREIGN KEY (journal_id) REFERENCES journals (journal_id)
+  );
+")
+
+# load articles table
+res <- dbSendQuery(con, "INSERT INTO articles (article_id, journal_id, pub_model, title, pagination, pub_date, lang) VALUES (:ArticleID, :JournalID, :PubModel, :Title, :Pagination, :Date, :Language );", articles_df)
+res <- dbSendQuery(con, "SELECT * FROM articles LIMIT 5;")
+
 dbFetch(res)
 ```
