@@ -60,7 +60,6 @@ single_author_list <- function(xmlNode) {
   
   return (paste(lastname, firstname, initials, sep='*'))
 }
-
 # parse attributes and elements on each authors node
 get_authors <- function(xmlNode) {
   newxmlNodeCopy <- duplicate(xmlNode)
@@ -71,27 +70,20 @@ get_authors <- function(xmlNode) {
   affiliation=xpathSApply(pb,'//Affiliation', xmlValue)
   return (paste(affiliation,names_single_string, sep='|'))
 }
-
 # read XML file and parse into DOM
 xml_file <- "pubmed_sample.xml"
 xmlDOM <- xmlParse(file = xml_file)
 xmlRoot <- xmlRoot(xmlDOM)
-
 # get authors list from XML file
 author_list <- xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
-
 # add authors list to data frame
 author_list_df <- tibble::enframe(author_list) %>%  separate(value, c('Affiliation', paste0('x', seq(12))), sep='\\|') %>% pivot_longer(starts_with('x'), names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col <- data, into = c('LastName', 'FirstName', 'Initial'), sep='\\*')
-
 # format authors data frame
 author_list_df_formatted <- author_list_df %>% distinct(FirstName, LastName, Initial)
-
 authors_df_initial <- merge(author_list_df,  author_list_df_formatted, all.x=TRUE)
-
 # remove extra columns from data frame
 authors_df <- subset(authors_df_initial, select = -c(index,name))
 authors_df <- tibble::rowid_to_column(authors_df, "authorID")
-
 # print data frame
 authors_df
 ```
@@ -121,15 +113,15 @@ res <- dbExecute(con, "
   CREATE TABLE IF NOT EXISTS authors
   (
     author_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    last_name TEXT NOT NULL,
-    first_name TEXT NOT NULL,
-    initials TEXT NOT NULL,
-    affiliation TEXT NOT NULL
+    last_name VARCHAR(255) NOT NULL,
+    first_name VARCHAR(255) NOT NULL,
+    initials VARCHAR(10) NOT NULL,
+    UNIQUE (last_name, first_name)
   );
 ")
 
 # load authors table
-res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials, affiliation) VALUES (:authorID, :LastName, :FirstName, :Initial, :Affiliation);", authors_df)
+res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials) VALUES (:authorID, :LastName, :FirstName, :Initial);", authors_df)
 res <- dbSendQuery(con, "SELECT * FROM authors LIMIT 5;")
 dbFetch(res)
 ```
@@ -1038,7 +1030,7 @@ SELECT *
 FROM "ArticleDateDim"
 LIMIT 5;
 ```
-### 2.2 Create and Load Fact Table
+### 2.2 PubMed Fact Table
 ```{sql, connection = con}
 -- drop table, useful for updates to table structure
 DROP TABLE IF EXISTS PubMedFact;
@@ -1068,5 +1060,144 @@ FROM "PubMedFact"
 LIMIT 5;
 ```
 ## 3. Logical Model for Part 2.2
+We added a new fact table which has the articles as a count instead of the articles by individual row. Removed the connection of between the main fact table and dimjournaldate as it seems that would more appropriately be connected to the summary table. We also needed to add the author dimension as per the requirements of the problem. The schema has become a galaxy schema since there are now 2 fact tables.
 ![Logical Model](Practicum III - Star Schema - P2.2 - Finalized .jpg)
 ## 4. Create and populate a summary fact table that represents number of articles per time period (quarter, year) by author and by journal
+### 4.1 Create and load the dimension tables
+#### 4.1.1 Author Dimension
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS AuthorDim;
+```
+```{sql, connection = con}
+CREATE TABLE AuthorDim
+  AS SELECT author_id, last_name, first_name, initials, affiliation FROM authors;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "AuthorDim"
+LIMIT 5;
+```
+#### 4.1.2 PubMed Fact Table Changes
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS PubMedFact;
+```
+```{sql, connection=con}
+-- create the fact table
+CREATE TABLE PubMedFact(
+  articledim_key INT,
+  journaldim_key INT,
+  articledatedim_key INT,
+  PRIMARY KEY (articledim_key, journaldim_key, articledatedim_key)
+);
+```
+```{sql, connection = con}
+INSERT INTO PubMedFact
+ SELECT a.article_id AS articledim_key, a.journal_id AS journaldim_key, ArticleDateDim.articledatedim_key
+  FROM articles a
+  LEFT JOIN ArticleDateDim ON ArticleDateDim.when_published = a.pub_date;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "PubMedFact"
+LIMIT 5;
+```
+#### 4.1.3 Summary Fact Table
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS SummaryFact;
+```
+```{sql, connection=con}
+-- create the fact table
+CREATE TABLE SummaryFact(
+  journaldim_key INT,
+  journaldatedim_key INT,
+  authordim_key INT,
+  count_articles INT,
+  PRIMARY KEY (journaldim_key, journaldatedim_key, authordim_key)
+);
+```
+```{sql, connection = con}
+INSERT INTO SummaryFact
+  SELECT journaldim_key, journaldatedim_key, authordim_key, COUNT(article_id) AS count_article
+  FROM (
+    SELECT  j.journal_id AS journaldim_key, JournalDateDim.journaldatedim_key, authors.author_id AS authordim_key, articles.article_id
+    FROM journals j
+    LEFT JOIN JournalDateDim ON JournalDateDim.when_published = j.pub_date
+    LEFT JOIN articles ON articles.journal_id = j.journal_id
+    LEFT JOIN article_author ON article_author.article_id = articles.article_id
+    LEFT JOIN authors ON authors.author_id = article_author.author_id
+  ) AS individs
+  GROUP BY authordim_key, journaldim_key, journaldim_key;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "SummaryFact"
+LIMIT 5;
+```
+# Part 3. Explore and Mine Data
+## 1. Logical Model for Part 3.1
+Removed the P2.2 additions as in OLAP it may be more applicable to represent the authors in the form of count per article. Also, added number_grants which is a count of the grant objects per article; history_actions is a count of the number of  history objects associated with the article; publication_actions is a count of the publication types associated with the article. Connected the journal date dimension to the main table again as we may want to use this information in our queries especially since some of the article's dates are NULL.
+![Logical Model](Practicum III - Star Schema - P3 - Finalized .jpg)
+## 2. Modify the Star Schema
+### 2.1 Delete Summary Fact table
+```{sql, connection = con}
+-- we are no longer using this, see above ERD
+DROP TABLE IF EXISTS SummaryFact;
+```
+```{sql, connection = con}
+-- since we deleted the Summary Fact table which was the only connection the author dimension, we should delete the Author dimension as well for memory purposes
+DROP TABLE IF EXISTS AuthorDim;
+```
+### 2.2 Modify PubMedFact Table
+```{sql, connection = con}
+-- drop table, useful for updates to table structure
+DROP TABLE IF EXISTS PubMedFact;
+```
+```{sql, connection=con}
+-- create the fact table
+CREATE TABLE PubMedFact(
+  articledim_key INT,
+  journaldim_key INT,
+  articledatedim_key INT,
+  journaldatedim_key INT,
+  number_authors INT,
+  number_grants INT, 
+  history_actions INT,
+  publication_actions INT,
+  PRIMARY KEY (articledim_key, journaldim_key, articledatedim_key, journaldatedim_key)
+);
+```
+```{sql, connection = con}
+INSERT INTO PubMedFact
+ SELECT a.article_id AS articledim_key, a.journal_id AS journaldim_key, ArticleDateDim.articledatedim_key, JournalDateDim.journaldatedim_key, number_authors, number_grants, history_actions, publication_actions
+  FROM articles a
+  LEFT JOIN ArticleDateDim ON ArticleDateDim.when_published = a.pub_date
+  LEFT JOIN journals ON journals.journal_id = a.journal_id
+  LEFT JOIN JournalDateDim ON JournalDateDim.when_published = journals.pub_date
+  LEFT JOIN (SELECT article_id, COUNT(author_id) AS number_authors
+              FROM article_author
+              GROUP BY article_id) AS authcount ON authcount.article_id = a.article_id
+  LEFT JOIN (SELECT article_id, COUNT(grant_id) AS number_grants
+             FROM article_grant
+             GROUP BY article_id) AS grantcount ON grantcount.article_id = a.article_id
+  LEFT JOIN (SELECT article_id, COUNT(history_id) AS history_actions
+             FROM article_history
+             GROUP BY article_id) AS histcount ON histcount.article_id = a.article_id
+  LEFT JOIN (SELECT article_id, COUNT(pub_type_id) AS publication_actions
+             FROM article_pub_type
+             GROUP BY article_id) AS pubcount ON pubcount.article_id = a.article_id;
+```
+```{sql, connection=con}
+-- show table was correctly loaded
+SELECT * 
+FROM "PubMedFact"
+LIMIT 5;
+```
+
+
+
