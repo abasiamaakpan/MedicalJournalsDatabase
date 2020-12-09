@@ -116,12 +116,13 @@ res <- dbExecute(con, "
     last_name VARCHAR(255) NOT NULL,
     first_name VARCHAR(255) NOT NULL,
     initials VARCHAR(10) NOT NULL,
+    affiliation TEXT NOT NULL,
     UNIQUE (last_name, first_name)
   );
 ")
 
 # load authors table
-res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials) VALUES (:authorID, :LastName, :FirstName, :Initial);", authors_df)
+res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials, affiliation) VALUES (:authorID, :LastName, :FirstName, :Initial, :Affiliation);", authors_df)
 res <- dbSendQuery(con, "SELECT * FROM authors LIMIT 5;")
 dbFetch(res)
 ```
