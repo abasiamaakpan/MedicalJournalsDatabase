@@ -80,26 +80,30 @@ author_list <- xpathSApply(xmlRoot,'//PubmedArticle//AuthorList', get_authors)
 author_list_df <- tibble::enframe(author_list) %>%  separate(value, c('Affiliation', paste0('x', seq(12))), sep='\\|') %>% pivot_longer(starts_with('x'), names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col <- data, into = c('LastName', 'FirstName', 'Initial'), sep='\\*')
 # format authors data frame
 author_list_df_formatted <- author_list_df %>% distinct(FirstName, LastName, Initial)
-authors_df_initial <- merge(author_list_df,  author_list_df_formatted, all.x=TRUE)
-# remove extra columns from data frame
-authors_df <- subset(authors_df_initial, select = -c(index,name))
-authors_df <- tibble::rowid_to_column(authors_df, "authorID")
-# print data frame
-authors_df
+author_list_with_ID <- tibble::rowid_to_column(author_list_df_formatted, "authorID")
+author_list_with_ID
 ```
 
 #### 2.1.2 Creating the Article-Authors dataframe
 ```{r}
 # create article-author data frame
-authors_df_copy = authors_df_initial[4] %>% 
+authors_df_initial <- merge(author_list_with_ID, author_list_df, all.x=TRUE)
+#authors_df_initial
+authorsDataframe=authors_df_initial %>% 
   dplyr::rename(
-    articleID = name,
+    articleID = name
     )
-article_authors_df <- tibble::rowid_to_column(authors_df_copy, "authorID")
+#authors_df_initial
+#remove extra columns from data frame
+authorsDataframeFinal <- subset(authorsDataframe, select = -c(index))
+# print data frame
+authorsDataframeFinal_done <-data.frame(authorid=authorsDataframeFinal[4], Lastname=authorsDataframeFinal[1],Firstname=authorsDataframeFinal[2],Initial=authorsDataframeFinal[3])
+article_authors_df <- data.frame(authorid=authorsDataframeFinal[4], articleid=authorsDataframeFinal[5])
 
 # print data frame
 article_authors_df
 ```
+
 
 #### 2.1.3 Importing Authors and Article-Authors into the database
 ```{r}
@@ -116,13 +120,12 @@ res <- dbExecute(con, "
     last_name VARCHAR(255) NOT NULL,
     first_name VARCHAR(255) NOT NULL,
     initials VARCHAR(10) NOT NULL,
-    affiliation TEXT NOT NULL,
     UNIQUE (last_name, first_name)
   );
 ")
 
 # load authors table
-res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials, affiliation) VALUES (:authorID, :LastName, :FirstName, :Initial, :Affiliation);", authors_df)
+res <- dbSendQuery(con, "INSERT INTO authors (author_id, last_name, first_name, initials) VALUES (:authorID, :LastName, :FirstName, :Initial);", author_list_with_ID)
 res <- dbSendQuery(con, "SELECT * FROM authors LIMIT 5;")
 dbFetch(res)
 ```
@@ -739,21 +742,23 @@ grants = xpathSApply(xmlRoot, '//Article', get_grants_list)
 # set up grants data frame
 grants_df_temp <- tibble::enframe(grants) %>%  separate(value, paste0('g', seq(10)), sep = '\\|') %>% pivot_longer(!name, names_to = 'index', values_to = 'data') %>% filter(!is.na(data)) %>% separate(col = data, into = c('GrantID', 'Acronym', 'Agency', 'Country'), sep = '\\*')
 
+
+grant_list_parsed_new_without_null <- na.omit(grants_df_temp)
 # format grants data frame
-grants_df_temp <- tibble::rowid_to_column(grants_df_temp, "ArticleID")
+grants_df_temp_without_null <- tibble::rowid_to_column(grant_list_parsed_new_without_null, "ArticleID")
 
-grants_df_temp <- data.frame(ArticleID = grants_df_temp[2], GrantID = grants_df_temp[4], Acronym = grants_df_temp[5], Agency = grants_df_temp[6], Country = grants_df_temp[7])
+grants_df_temp_without_null <- data.frame(ArticleID = grants_df_temp_without_null[2], GrantID = grants_df_temp_without_null[4], Acronym = grants_df_temp_without_null[5], Agency = grants_df_temp_without_null[6], Country = grants_df_temp_without_null[7])
 
-grants_df_temp <- grants_df_temp %>% dplyr::rename(ArticleID = name)
+
+grants_df_temp_new <- grants_df_temp_without_null %>% dplyr::rename(ArticleID = name)
 
 # format columns on grants data frame
-grants_df_formatted <- grants_df_temp %>% distinct(ArticleID, GrantID, Agency, Acronym, Country)
-
+grants_df_formatted <- grants_df_temp_new %>% distinct(ArticleID, GrantID, Agency, Acronym, Country)
 # assign unique id to grants
 grants_df_new_col <- tibble::rowid_to_column(grants_df_formatted, "UniqueGrantID")
 
 # create grants data frame
-grants_df <- data.frame(UniqueGrandID = grants_df_new_col[1], ID = grants_df_formatted[2], Acronym = grants_df_formatted[3], Agency = grants_df_formatted[4], Country = grants_df_formatted[5])
+grants_df <- data.frame(UniqueGrandID = grants_df_new_col[1], GrantID = grants_df_formatted[2], Acronym = grants_df_formatted[3], Agency = grants_df_formatted[4], Country = grants_df_formatted[5])
 
 # return grants data frame
 grants_df
@@ -788,7 +793,7 @@ res <- dbExecute(con, "
 
 # load history table
 res <- dbSendQuery(con, "INSERT INTO grants (grant_id, id, acronym, agency, country) VALUES (:UniqueGrantID, :GrantID, :Acronym, :Agency, :Country);", grants_df)
-res <- dbSendQuery(con, "SELECT * FROM grants LIMIT 5;")
+res <- dbSendQuery(con, "SELECT * FROM grants;")
 
 dbFetch(res)
 ```
@@ -1072,7 +1077,7 @@ DROP TABLE IF EXISTS AuthorDim;
 ```
 ```{sql, connection = con}
 CREATE TABLE AuthorDim
-  AS SELECT author_id, last_name, first_name, initials, affiliation FROM authors;
+  AS SELECT author_id, last_name, first_name, initials FROM authors;
 ```
 ```{sql, connection=con}
 -- show table was correctly loaded
