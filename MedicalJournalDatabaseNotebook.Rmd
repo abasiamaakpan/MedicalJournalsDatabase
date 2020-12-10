@@ -13,7 +13,7 @@ output: html_notebook
 
 ## First specify the packages of interest
 packages = c("RSQLite", "DBI", "XML", "rlang", 
-             "dplyr", "tidyr", "lubridate")
+             "dplyr", "tidyr", "lubridate","ggplot2")
 
 ## Now load or install&load all
 package.check <- lapply(
@@ -34,6 +34,7 @@ library(DBI)
 library(XML)
 library(rlang)
 library(lubridate)
+library(ggplot2)
 ```
 
 ```{r}
@@ -1198,6 +1199,7 @@ INSERT INTO PubMedFact
              FROM article_pub_type
              GROUP BY article_id) AS pubcount ON pubcount.article_id = a.article_id;
 ```
+
 ```{sql, connection=con}
 -- show table was correctly loaded
 SELECT * 
@@ -1205,5 +1207,103 @@ FROM "PubMedFact"
 LIMIT 5;
 ```
 
+## 3.1 Data Warehouse Queries
+### Number of journals per quarter per year
+```{r}
+get_count_journal <- dbGetQuery(con, "SELECT jdd.year_num,jdd.quarter_of_year, COUNT(*) AS count
+FROM PubMedFact AS pmf 
+INNER JOIN JournalDateDim AS jdd ON pmf.journaldatedim_key=jdd.journaldatedim_key 
+GROUP BY jdd.year_num,jdd.quarter_of_year
+ORDER BY jdd.year_num,jdd.quarter_of_year;")
+get_count_journal 
+```
 
+
+```{r}
+ggplot(data=get_count_journal %>% mutate(row=row_number()))+
+  geom_point(aes(y=count,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=count,x=row)) +xlab("quarter")+ylab("journalCount")
+```
+
+### No of articles per quarter per year
+```{r}
+get_no_of_articles_per_quarter <- dbGetQuery(con, "SELECT a.year_num,a.quarter_of_year, COUNT(*) AS article_count
+FROM PubMedFact AS pmf 
+INNER JOIN ArticleDateDim AS a ON
+pmf.articledatedim_key=a.articledatedim_key 
+INNER JOIN ArticleDim AS adim ON 
+pmf.articledim_key=adim.articledim_key
+GROUP BY a.year_num,a.quarter_of_year
+ORDER BY a.year_num,a.quarter_of_year;")
+get_no_of_articles_per_quarter 
+```
+
+```{r}
+ggplot(data=get_no_of_articles_per_quarter %>% mutate(row=row_number()))+
+  geom_point(aes(y=article_count,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=article_count,x=row)) +xlab("quarter")+ylab("articleCount")
+```
+
+### No of authors per quarter per year
+```{r}
+get_no_of_authors_per_quarter <- dbGetQuery(con, "SELECT a.year_num,a.quarter_of_year, AVG(number_authors) AS no_of_authors
+FROM PubMedFact AS pmf 
+INNER JOIN ArticleDateDim AS a ON
+pmf.articledatedim_key=a.articledatedim_key 
+GROUP BY a.year_num,a.quarter_of_year
+ORDER BY a.year_num,a.quarter_of_year;")
+get_no_of_authors_per_quarter 
+```
+```{r}
+ggplot(data=get_no_of_authors_per_quarter %>% mutate(row=row_number()))+
+  geom_point(aes(y=no_of_authors,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=no_of_authors,x=row)) +xlab("quarter")+ylab("authorCount")
+```
+### No of publication actions per quarter per year
+```{r}
+get_no_of_publication_actions_per_quarter <- dbGetQuery(con, "SELECT jdd.year_num,jdd.quarter_of_year, sum(publication_actions) AS no_of_publications
+FROM PubMedFact AS pmf 
+INNER JOIN JournalDateDim AS jdd ON pmf.journaldatedim_key=jdd.journaldatedim_key 
+GROUP BY jdd.year_num,jdd.quarter_of_year
+ORDER BY jdd.year_num,jdd.quarter_of_year;")
+get_no_of_publication_actions_per_quarter
+```
+
+```{r}
+ggplot(data=get_no_of_publication_actions_per_quarter%>% mutate(row=row_number()))+
+  geom_point(aes(y=no_of_publications,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=no_of_publications,x=row)) +xlab("quarter")+ylab("publicationActions")
+```
+### No of grants per quarter per year
+```{r}
+get_no_of_grants_per_quarter <- dbGetQuery(con, "SELECT jdd.year_num,jdd.quarter_of_year, sum(number_grants) AS sum_no_grants
+FROM PubMedFact AS pmf 
+INNER JOIN JournalDateDim AS jdd ON pmf.journaldatedim_key=jdd.journaldatedim_key 
+GROUP BY jdd.year_num,jdd.quarter_of_year
+ORDER BY jdd.year_num,jdd.quarter_of_year;
+")
+get_no_of_grants_per_quarter
+
+```
+```{r}
+ggplot(data=get_no_of_grants_per_quarter%>% mutate(row=row_number()))+
+  geom_point(aes(y=sum_no_grants,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=sum_no_grants,x=row)) +xlab("quarter")+ylab("grantCount")
+```
+### Number of history actions per quarter per year
+```{r}
+get_no_of_history_actions_per_quarter <- dbGetQuery(con, "SELECT jdd.year_num,jdd.quarter_of_year, SUM(history_actions) AS history_action_sum
+FROM PubMedFact AS pmf 
+INNER JOIN JournalDateDim AS jdd ON pmf.journaldatedim_key=jdd.journaldatedim_key 
+GROUP BY jdd.year_num,jdd.quarter_of_year
+ORDER BY jdd.year_num,jdd.quarter_of_year;;
+")
+get_no_of_history_actions_per_quarter
+```
+```{r}
+ggplot(data=get_no_of_history_actions_per_quarter%>% mutate(row=row_number()))+
+  geom_point(aes(y=history_action_sum,x=as.factor(paste(year_num,quarter_of_year,sep="Q"))))+geom_smooth(method="lm", aes(y=history_action_sum,x=row)) +xlab("quarter")+ylab("historyActions")
+```
+
+## 3.2 Explanation
+### There is an obvious downward trend of journal/article publications between the year 2012-2013. In Q1 of 2012 we see the number of journals reaching a high of 5 which corresponds to the most grants being handed out (13) and a high number of journal/article revisions (historyActions) (23). There is a decrease in Q2 between these trends but in Q3 of 2012 however (fall), there is a slight increase. At the end of the year in Q4, the number of journals/articles, grants and history actions(revisions) reach their lowest, and in Q1 of 2013 the trend picks back up again. In terms of the number of authors distribution,the average number of authors between 2011Q3 and 2012Q4 is also trending downwards but at the end of Q4 there is an increase as compared to the other metrics which was slightly odd given the fact that number of journals/grants were at their lowest but other factors may result in this trend. Overall though, looks like the beginning of each year, writers are active and then as the year runs out there is a steady decrease of publications (journals/articles) along with the other metrics probably due to the holidays but more data is needed to come to this conclusion. I would say though for the year 2020 I would expect more papers to be published towards the end of the year based on the ongoing research work surrounding the pandemic. 
+
+```{r}
+
+```
 
